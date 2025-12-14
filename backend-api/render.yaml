@@ -1,0 +1,28 @@
+# Render.com Deployment Configuration
+# Okta AI Agent Demo - Backend API (C2)
+
+services:
+  - type: web
+    name: okta-ai-agent-backend
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false  # Set manually in Render dashboard
+      - key: MCP_SERVER_URL
+        value: https://okta-ai-agent-demo.onrender.com
+      - key: OKTA_DOMAIN
+        value: qa-aiagentsproducttc1.trexcloud.com
+      - key: OKTA_CLIENT_ID
+        value: 0oa8x8i98ebUMhrhw0g7
+      - key: OKTA_CLIENT_SECRET
+        sync: false  # Set manually in Render dashboard
+      - key: OKTA_AUTH_SERVER
+        value: default
+      - key: OKTA_AGENT_ID
+        value: wlp8x98zcxMOXEPHJ0g7
+      - key: CLAUDE_MODEL
+        value: claude-sonnet-4-20250514
+    healthCheckPath: /health
+    autoDeploy: true
