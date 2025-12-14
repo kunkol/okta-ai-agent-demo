@@ -1,0 +1,869 @@
+'use client';
+
+import { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// Types
+interface Message {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: Date;
+  securityContext?: SecurityContext;
+}
+
+interface SecurityContext {
+  tokenExchange: boolean;
+  targetAudience: string;
+  fgaCheck: string;
+  cibaRequired: boolean;
+  cibaStatus: string | null;
+  toolsExecuted: string[];
+  riskLevel: string;
+}
+
+interface SecurityStep {
+  id: string;
+  name: string;
+  status: 'pending' | 'running' | 'success' | 'error' | 'warning';
+  detail: string;
+  timestamp: Date;
+}
+
+interface AuditEntry {
+  id: string;
+  timestamp: Date;
+  action: string;
+  user: string;
+  resource: string;
+  decision: 'allowed' | 'denied' | 'pending';
+  riskLevel: string;
+  auditId: string;
+}
+
+interface Metrics {
+  requestsSecured: number;
+  tokensExchanged: number;
+  threatsBlocked: number;
+  cibaApprovals: number;
+}
+
+// SVG Icons
+const IconShield = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+  </svg>
+);
+
+const IconLock = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+  </svg>
+);
+
+const IconKey = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+  </svg>
+);
+
+const IconCheck = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+  </svg>
+);
+
+const IconX = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+  </svg>
+);
+
+const IconAlert = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+  </svg>
+);
+
+const IconServer = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3m-19.5 0a4.5 4.5 0 01.9-2.7L5.737 5.1a3.375 3.375 0 012.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 01.9 2.7m0 0a3 3 0 01-3 3m0 3h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008zm-3 6h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008z" />
+  </svg>
+);
+
+const IconCpu = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25zm.75-12h9v9h-9v-9z" />
+  </svg>
+);
+
+const IconActivity = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+  </svg>
+);
+
+const IconSend = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+  </svg>
+);
+
+const IconRefresh = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+  </svg>
+);
+
+// Demo scenarios
+const DEMO_SCENARIOS = [
+  { label: 'Customer Lookup - Authorized', query: 'Get customer information for Alice', risk: 'low' },
+  { label: 'Customer Lookup - Restricted', query: 'Get customer information for Charlie', risk: 'high' },
+  { label: 'Payment - Standard', query: 'Initiate a payment of $5000 to Vendor Corp', risk: 'medium' },
+  { label: 'Payment - High Value', query: 'Initiate a payment of $15000 to Acme Inc', risk: 'critical' },
+  { label: 'Document Search', query: 'Search for documents about security policies', risk: 'low' },
+];
+
+// Architecture Node Component
+const ArchitectureNode = ({ 
+  label, 
+  sublabel, 
+  status,
+}: { 
+  label: string; 
+  sublabel: string; 
+  status: 'idle' | 'processing' | 'success' | 'error';
+}) => {
+  const statusColors = {
+    idle: 'border-white/10 bg-[#14141c]',
+    processing: 'border-[#007DC1]/50 bg-[#007DC1]/10',
+    success: 'border-emerald-500/50 bg-emerald-500/10',
+    error: 'border-red-500/50 bg-red-500/10',
+  };
+
+  const glowColors = {
+    idle: '',
+    processing: 'shadow-[0_0_40px_rgba(0,125,193,0.4)]',
+    success: 'shadow-[0_0_40px_rgba(16,185,129,0.4)]',
+    error: 'shadow-[0_0_40px_rgba(239,68,68,0.4)]',
+  };
+
+  return (
+    <motion.div
+      className={`relative px-5 py-3 rounded-lg border-2 transition-all duration-500 ${statusColors[status]} ${glowColors[status]}`}
+      animate={status === 'processing' ? { scale: [1, 1.03, 1] } : {}}
+      transition={{ duration: 0.8, repeat: status === 'processing' ? Infinity : 0 }}
+    >
+      <div className="text-center">
+        <p className="text-sm font-semibold text-white">{label}</p>
+        <p className="text-[10px] text-gray-500 mt-0.5">{sublabel}</p>
+      </div>
+      {status === 'success' && (
+        <motion.div 
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center"
+        >
+          <IconCheck className="w-2.5 h-2.5 text-white" />
+        </motion.div>
+      )}
+      {status === 'error' && (
+        <motion.div 
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 flex items-center justify-center"
+        >
+          <IconX className="w-2.5 h-2.5 text-white" />
+        </motion.div>
+      )}
+    </motion.div>
+  );
+};
+
+// Connection Line with animated particle
+const ConnectionLine = ({ 
+  active, 
+  direction = 'right',
+  status = 'idle'
+}: { 
+  active: boolean; 
+  direction?: 'right' | 'down';
+  status?: 'idle' | 'processing' | 'success' | 'error';
+}) => {
+  const colors = {
+    idle: 'from-white/5 via-white/10 to-white/5',
+    processing: 'from-[#007DC1]/30 via-[#007DC1]/80 to-[#007DC1]/30',
+    success: 'from-emerald-500/30 via-emerald-500/80 to-emerald-500/30',
+    error: 'from-red-500/30 via-red-500/80 to-red-500/30',
+  };
+
+  if (direction === 'down') {
+    return (
+      <div className="flex justify-center py-1">
+        <div className={`w-0.5 h-6 bg-gradient-to-b ${colors[status]} relative overflow-hidden`}>
+          {active && (
+            <motion.div
+              className="absolute w-full h-3 bg-gradient-to-b from-transparent via-white/80 to-transparent"
+              animate={{ top: ['-12px', '24px'] }}
+              transition={{ duration: 0.5, repeat: Infinity, ease: 'linear' }}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center px-1">
+      <div className={`h-0.5 w-8 bg-gradient-to-r ${colors[status]} relative overflow-hidden`}>
+        {active && (
+          <motion.div
+            className="absolute h-full w-3 bg-gradient-to-r from-transparent via-white/80 to-transparent"
+            animate={{ left: ['-12px', '32px'] }}
+            transition={{ duration: 0.4, repeat: Infinity, ease: 'linear' }}
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default function Home() {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [securitySteps, setSecuritySteps] = useState<SecurityStep[]>([]);
+  const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
+  const [activeTab, setActiveTab] = useState<'chat' | 'audit'>('chat');
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'healthy' | 'degraded' | 'error'>('checking');
+  const [metrics, setMetrics] = useState<Metrics>({ requestsSecured: 0, tokensExchanged: 0, threatsBlocked: 0, cibaApprovals: 0 });
+  const [archState, setArchState] = useState({ frontend: 'idle', backend: 'idle', mcp: 'idle', okta: 'idle' } as Record<string, 'idle' | 'processing' | 'success' | 'error'>);
+  const [flowActive, setFlowActive] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://okta-ai-agent-backend.onrender.com';
+
+  useEffect(() => {
+    checkBackendHealth();
+  }, []);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const checkBackendHealth = async () => {
+    setBackendStatus('checking');
+    try {
+      const response = await fetch(`${BACKEND_URL}/health`);
+      const data = await response.json();
+      setBackendStatus(data.status === 'healthy' ? 'healthy' : 'degraded');
+    } catch {
+      setBackendStatus('error');
+    }
+  };
+
+  const addSecurityStep = (step: Omit<SecurityStep, 'id' | 'timestamp'>) => {
+    const newStep: SecurityStep = {
+      ...step,
+      id: `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: new Date(),
+    };
+    setSecuritySteps(prev => [...prev, newStep]);
+    return newStep.id;
+  };
+
+  const updateSecurityStep = (id: string, updates: Partial<SecurityStep>) => {
+    setSecuritySteps(prev => 
+      prev.map(step => step.id === id ? { ...step, ...updates } : step)
+    );
+  };
+
+  const animateArchitecture = async (success: boolean) => {
+    setFlowActive(true);
+    
+    setArchState(s => ({ ...s, frontend: 'processing' }));
+    await new Promise(r => setTimeout(r, 300));
+    
+    setArchState(s => ({ ...s, frontend: 'success', backend: 'processing' }));
+    await new Promise(r => setTimeout(r, 400));
+    
+    setArchState(s => ({ ...s, okta: 'processing' }));
+    await new Promise(r => setTimeout(r, 500));
+    setArchState(s => ({ ...s, okta: 'success' }));
+    
+    setArchState(s => ({ ...s, backend: 'success', mcp: 'processing' }));
+    await new Promise(r => setTimeout(r, 400));
+    
+    setArchState(s => ({ ...s, mcp: success ? 'success' : 'error' }));
+    await new Promise(r => setTimeout(r, 600));
+    
+    setFlowActive(false);
+    setTimeout(() => {
+      setArchState({ frontend: 'idle', backend: 'idle', mcp: 'idle', okta: 'idle' });
+    }, 2000);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || isProcessing) return;
+
+    const userMessage: Message = {
+      id: `msg-${Date.now()}`,
+      role: 'user',
+      content: input,
+      timestamp: new Date(),
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setIsProcessing(true);
+    setSecuritySteps([]);
+
+    const tokenStepId = addSecurityStep({
+      name: 'Token Exchange',
+      status: 'running',
+      detail: 'Initiating Cross-App Access token exchange',
+    });
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: input }),
+      });
+
+      const data = await response.json();
+      const fgaResult = data.security_flow?.fga_check_result || 'ALLOWED';
+      const isSuccess = fgaResult === 'ALLOWED';
+      const hasCiba = data.security_flow?.ciba_approval_required || false;
+
+      animateArchitecture(isSuccess);
+
+      setMetrics(m => ({
+        requestsSecured: m.requestsSecured + 1,
+        tokensExchanged: m.tokensExchanged + 1,
+        threatsBlocked: m.threatsBlocked + (isSuccess ? 0 : 1),
+        cibaApprovals: m.cibaApprovals + (hasCiba ? 1 : 0),
+      }));
+
+      updateSecurityStep(tokenStepId, { 
+        status: 'success', 
+        detail: `Audience: ${data.security_flow?.target_audience || 'mcp-server'}` 
+      });
+
+      addSecurityStep({
+        name: 'Authorization Decision',
+        status: fgaResult === 'ALLOWED' ? 'success' : 'error',
+        detail: `Policy evaluation: ${fgaResult}`,
+      });
+
+      if (data.tool_executions) {
+        data.tool_executions.forEach((tool: any) => {
+          addSecurityStep({
+            name: `Resource Access: ${tool.name}`,
+            status: tool.status === 'completed' ? 'success' : 
+                   tool.status === 'denied' ? 'error' : 'warning',
+            detail: `Risk: ${tool.risk_level?.toUpperCase() || 'LOW'}`,
+          });
+        });
+      }
+
+      if (hasCiba) {
+        addSecurityStep({
+          name: 'Step-Up Authentication',
+          status: data.security_flow.ciba_approval_status === 'approved' ? 'success' : 'warning',
+          detail: `CIBA: ${data.security_flow.ciba_approval_status || 'Required'}`,
+        });
+      }
+
+      const assistantMessage: Message = {
+        id: `msg-${Date.now()}`,
+        role: 'assistant',
+        content: data.response,
+        timestamp: new Date(),
+        securityContext: {
+          tokenExchange: data.security_flow?.token_exchanged || false,
+          targetAudience: data.security_flow?.target_audience || 'mcp-server',
+          fgaCheck: fgaResult,
+          cibaRequired: hasCiba,
+          cibaStatus: data.security_flow?.ciba_approval_status,
+          toolsExecuted: data.tool_executions?.map((t: any) => t.name) || [],
+          riskLevel: data.tool_executions?.[0]?.risk_level || 'low',
+        },
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+
+      setAuditLog(prev => [{
+        id: `audit-${Date.now()}`,
+        timestamp: new Date(),
+        action: input,
+        user: 'demo-user',
+        resource: data.tool_executions?.[0]?.name || 'chat',
+        decision: isSuccess ? 'allowed' : 'denied',
+        riskLevel: data.tool_executions?.[0]?.risk_level || 'low',
+        auditId: data.audit_id || 'N/A',
+      }, ...prev]);
+
+    } catch {
+      updateSecurityStep(tokenStepId, { 
+        status: 'error', 
+        detail: 'Connection failed' 
+      });
+
+      setArchState({ frontend: 'error', backend: 'error', mcp: 'idle', okta: 'idle' });
+
+      setMessages(prev => [...prev, {
+        id: `msg-${Date.now()}`,
+        role: 'assistant',
+        content: 'Unable to connect to the backend service. Please ensure the services are running.',
+        timestamp: new Date(),
+      }]);
+    }
+
+    setIsProcessing(false);
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col bg-[#08080c]">
+      {/* Header */}
+      <header className="border-b border-white/5 bg-[#0a0a0f]/80 backdrop-blur-xl sticky top-0 z-50">
+        <div className="max-w-[1800px] mx-auto px-8 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-5">
+            <div className="relative">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#00297A] via-[#007DC1] to-[#00D4AA] flex items-center justify-center">
+                <IconShield className="w-6 h-6 text-white" />
+              </div>
+              <div className="absolute -inset-1 rounded-xl bg-gradient-to-br from-[#00D4AA]/20 to-[#007DC1]/20 blur-lg -z-10" />
+            </div>
+            <div>
+              <h1 className="text-xl font-semibold text-white tracking-tight">
+                AI Agent Security Gateway
+              </h1>
+              <p className="text-xs text-gray-500 tracking-wide">Okta Cross-App Access</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-6">
+            {/* Live Metrics */}
+            <div className="hidden lg:flex items-center gap-6 pr-6 border-r border-white/5">
+              <div className="text-center">
+                <p className="text-2xl font-semibold text-white tabular-nums">{metrics.requestsSecured}</p>
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider">Secured</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-semibold text-[#00D4AA] tabular-nums">{metrics.tokensExchanged}</p>
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider">Tokens</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-semibold text-red-400 tabular-nums">{metrics.threatsBlocked}</p>
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider">Blocked</p>
+              </div>
+            </div>
+
+            {/* Status */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#14141c] border border-white/5">
+                <div className={`w-2 h-2 rounded-full ${
+                  backendStatus === 'healthy' ? 'bg-emerald-400' :
+                  backendStatus === 'degraded' ? 'bg-amber-400' :
+                  backendStatus === 'error' ? 'bg-red-400' : 'bg-gray-400 animate-pulse'
+                }`} />
+                <span className="text-xs text-gray-400">
+                  {backendStatus === 'healthy' ? 'All Systems Operational' :
+                   backendStatus === 'degraded' ? 'Degraded Performance' :
+                   backendStatus === 'error' ? 'Service Unavailable' : 'Connecting'}
+                </span>
+              </div>
+              <button 
+                onClick={checkBackendHealth}
+                className="p-2 hover:bg-white/5 rounded-lg transition-colors"
+                title="Refresh Status"
+              >
+                <IconRefresh className={`w-4 h-4 text-gray-500 ${backendStatus === 'checking' ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1 flex">
+        <div className="flex-1 max-w-[1800px] mx-auto w-full flex">
+          
+          {/* Left Panel - Chat */}
+          <div className="flex-1 flex flex-col border-r border-white/5 min-w-0">
+            {/* Tabs */}
+            <div className="border-b border-white/5 px-6">
+              <div className="flex gap-1">
+                {[
+                  { id: 'chat', label: 'Agent Console' },
+                  { id: 'audit', label: 'Audit Trail', count: auditLog.length },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as 'chat' | 'audit')}
+                    className={`px-5 py-3.5 text-sm font-medium border-b-2 transition-all ${
+                      activeTab === tab.id
+                        ? 'border-[#00D4AA] text-white'
+                        : 'border-transparent text-gray-500 hover:text-gray-300'
+                    }`}
+                  >
+                    {tab.label}
+                    {tab.count !== undefined && tab.count > 0 && (
+                      <span className="ml-2 px-2 py-0.5 text-[10px] rounded-full bg-[#00D4AA]/10 text-[#00D4AA]">
+                        {tab.count}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {activeTab === 'chat' ? (
+              <>
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                  {messages.length === 0 && (
+                    <div className="h-full flex flex-col items-center justify-center py-12">
+                      <div className="w-20 h-20 mb-6 rounded-2xl bg-gradient-to-br from-[#00297A]/20 via-[#007DC1]/20 to-[#00D4AA]/20 border border-white/5 flex items-center justify-center">
+                        <IconCpu className="w-10 h-10 text-[#00D4AA]/60" />
+                      </div>
+                      <h3 className="text-xl font-semibold text-white mb-2">
+                        AI Agent Security Demo
+                      </h3>
+                      <p className="text-gray-500 text-sm max-w-md text-center mb-8">
+                        Execute security scenarios to observe Cross-App Access token exchange, 
+                        Fine-Grained Authorization, and CIBA step-up authentication.
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-w-3xl">
+                        {DEMO_SCENARIOS.map((scenario, index) => (
+                          <button
+                            key={index}
+                            onClick={() => setInput(scenario.query)}
+                            className={`group px-4 py-3 text-left rounded-xl border transition-all ${
+                              scenario.risk === 'critical' ? 'border-red-500/20 hover:border-red-500/40 hover:bg-red-500/5' :
+                              scenario.risk === 'high' ? 'border-amber-500/20 hover:border-amber-500/40 hover:bg-amber-500/5' :
+                              scenario.risk === 'medium' ? 'border-blue-500/20 hover:border-blue-500/40 hover:bg-blue-500/5' :
+                              'border-white/5 hover:border-white/10 hover:bg-white/5'
+                            }`}
+                          >
+                            <p className="text-sm text-white font-medium mb-1">{scenario.label}</p>
+                            <p className={`text-[10px] uppercase tracking-wider ${
+                              scenario.risk === 'critical' ? 'text-red-400' :
+                              scenario.risk === 'high' ? 'text-amber-400' :
+                              scenario.risk === 'medium' ? 'text-blue-400' :
+                              'text-gray-500'
+                            }`}>
+                              {scenario.risk} risk
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <AnimatePresence>
+                    {messages.map((message) => (
+                      <motion.div
+                        key={message.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div className={`max-w-[75%] ${
+                          message.role === 'user'
+                            ? 'bg-gradient-to-r from-[#007DC1] to-[#00D4AA] text-white rounded-2xl rounded-br-sm'
+                            : 'bg-[#12121a] border border-white/5 rounded-2xl rounded-bl-sm'
+                        } px-5 py-4`}>
+                          {message.role === 'assistant' && (
+                            <div className="flex items-center gap-2 mb-3 pb-3 border-b border-white/5">
+                              <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-[#007DC1] to-[#00D4AA] flex items-center justify-center">
+                                <IconCpu className="w-3.5 h-3.5 text-white" />
+                              </div>
+                              <span className="text-xs text-gray-400 font-medium">AI Agent Response</span>
+                            </div>
+                          )}
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                          
+                          {message.securityContext && (
+                            <div className="mt-4 pt-3 border-t border-white/5 flex flex-wrap gap-2">
+                              {message.securityContext.tokenExchange && (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                  <IconKey className="w-3 h-3" />
+                                  Token Exchanged
+                                </span>
+                              )}
+                              {message.securityContext.fgaCheck === 'ALLOWED' ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                  <IconCheck className="w-3 h-3" />
+                                  Authorized
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium bg-red-500/10 text-red-400 border border-red-500/20">
+                                  <IconX className="w-3 h-3" />
+                                  Access Denied
+                                </span>
+                              )}
+                              {message.securityContext.cibaRequired && (
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium ${
+                                  message.securityContext.cibaStatus === 'approved' 
+                                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                                    : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                }`}>
+                                  <IconLock className="w-3 h-3" />
+                                  CIBA {message.securityContext.cibaStatus}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+
+                  {isProcessing && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="flex justify-start"
+                    >
+                      <div className="bg-[#12121a] border border-white/5 rounded-2xl rounded-bl-sm px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex gap-1">
+                            {[0, 1, 2].map(i => (
+                              <motion.span
+                                key={i}
+                                className="w-2 h-2 bg-[#00D4AA] rounded-full"
+                                animate={{ opacity: [0.3, 1, 0.3] }}
+                                transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
+                              />
+                            ))}
+                          </div>
+                          <span className="text-xs text-gray-500">Processing request securely</span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
+
+                {/* Input */}
+                <div className="p-5 border-t border-white/5">
+                  <form onSubmit={handleSubmit} className="flex gap-3">
+                    <input
+                      type="text"
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      placeholder="Enter a command or select a scenario above"
+                      className="flex-1 bg-[#12121a] border border-white/10 rounded-xl px-5 py-3.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#00D4AA]/50 focus:ring-1 focus:ring-[#00D4AA]/20 transition-all"
+                      disabled={isProcessing}
+                    />
+                    <button
+                      type="submit"
+                      disabled={isProcessing || !input.trim()}
+                      className="px-6 py-3.5 bg-gradient-to-r from-[#007DC1] to-[#00D4AA] text-white font-medium rounded-xl flex items-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <IconSend className="w-4 h-4" />
+                      Execute
+                    </button>
+                  </form>
+                </div>
+              </>
+            ) : (
+              /* Audit Trail */
+              <div className="flex-1 overflow-y-auto p-6">
+                {auditLog.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center">
+                    <IconActivity className="w-12 h-12 text-gray-700 mb-4" />
+                    <p className="text-gray-500">No audit entries recorded</p>
+                    <p className="text-gray-600 text-sm">Execute a scenario to generate audit logs</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {auditLog.map((entry, index) => (
+                      <motion.div
+                        key={entry.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="bg-[#12121a] border border-white/5 rounded-xl p-5"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                              entry.decision === 'allowed' ? 'bg-emerald-500/10' :
+                              entry.decision === 'denied' ? 'bg-red-500/10' : 'bg-amber-500/10'
+                            }`}>
+                              {entry.decision === 'allowed' ? (
+                                <IconCheck className="w-4 h-4 text-emerald-400" />
+                              ) : entry.decision === 'denied' ? (
+                                <IconX className="w-4 h-4 text-red-400" />
+                              ) : (
+                                <IconAlert className="w-4 h-4 text-amber-400" />
+                              )}
+                            </div>
+                            <div>
+                              <p className={`text-sm font-medium ${
+                                entry.decision === 'allowed' ? 'text-emerald-400' :
+                                entry.decision === 'denied' ? 'text-red-400' : 'text-amber-400'
+                              }`}>
+                                {entry.decision.toUpperCase()}
+                              </p>
+                              <p className="text-[10px] text-gray-500 uppercase tracking-wider">
+                                Risk: {entry.riskLevel}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="text-xs text-gray-600 font-mono">
+                            {entry.timestamp.toLocaleTimeString()}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-300 mb-2 line-clamp-2">{entry.action}</p>
+                        <div className="flex items-center gap-4 text-xs text-gray-600">
+                          <span>User: {entry.user}</span>
+                          <span>Resource: {entry.resource}</span>
+                          <span className="font-mono">{entry.auditId}</span>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Right Panel - Architecture & Security Flow */}
+          <div className="w-[400px] flex flex-col bg-[#0a0a0f]">
+            {/* Architecture Diagram */}
+            <div className="p-5 border-b border-white/5">
+              <div className="flex items-center gap-2 mb-4">
+                <IconServer className="w-4 h-4 text-[#00D4AA]" />
+                <h2 className="text-sm font-semibold text-white">Live Architecture</h2>
+              </div>
+              
+              <div className="space-y-0">
+                <div className="flex justify-center">
+                  <ArchitectureNode label="Frontend" sublabel="Vercel" status={archState.frontend as any} />
+                </div>
+                
+                <ConnectionLine active={flowActive} direction="down" status={archState.frontend as any} />
+                
+                <div className="flex justify-center">
+                  <ArchitectureNode label="Backend API" sublabel="Render" status={archState.backend as any} />
+                </div>
+                
+                <div className="flex justify-center py-1">
+                  <div className="flex items-end gap-6">
+                    <ConnectionLine active={flowActive} direction="down" status={archState.okta as any} />
+                    <ConnectionLine active={flowActive} direction="down" status={archState.mcp as any} />
+                  </div>
+                </div>
+                
+                <div className="flex justify-center gap-3">
+                  <ArchitectureNode label="Okta" sublabel="Identity" status={archState.okta as any} />
+                  <ArchitectureNode label="MCP Server" sublabel="Tools" status={archState.mcp as any} />
+                </div>
+              </div>
+            </div>
+
+            {/* Security Flow Steps */}
+            <div className="flex-1 flex flex-col min-h-0">
+              <div className="p-4 border-b border-white/5">
+                <div className="flex items-center gap-2">
+                  <IconActivity className="w-4 h-4 text-[#00D4AA]" />
+                  <h2 className="text-sm font-semibold text-white">Security Events</h2>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                {securitySteps.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center py-8">
+                    <IconShield className="w-10 h-10 text-gray-800 mb-3" />
+                    <p className="text-gray-600 text-sm">Security events will appear here</p>
+                    <p className="text-gray-700 text-xs">Execute a scenario to begin</p>
+                  </div>
+                ) : (
+                  <AnimatePresence>
+                    {securitySteps.map((step, index) => (
+                      <motion.div
+                        key={step.id}
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        className="relative"
+                      >
+                        {index < securitySteps.length - 1 && (
+                          <div className="absolute left-3 top-8 w-px h-5 bg-gradient-to-b from-white/10 to-transparent" />
+                        )}
+                        
+                        <div className="flex items-start gap-3">
+                          <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 ${
+                            step.status === 'success' ? 'bg-emerald-500/20' :
+                            step.status === 'error' ? 'bg-red-500/20' :
+                            step.status === 'warning' ? 'bg-amber-500/20' :
+                            step.status === 'running' ? 'bg-blue-500/20' :
+                            'bg-gray-500/20'
+                          }`}>
+                            {step.status === 'success' ? (
+                              <IconCheck className="w-3.5 h-3.5 text-emerald-400" />
+                            ) : step.status === 'error' ? (
+                              <IconX className="w-3.5 h-3.5 text-red-400" />
+                            ) : step.status === 'warning' ? (
+                              <IconAlert className="w-3.5 h-3.5 text-amber-400" />
+                            ) : step.status === 'running' ? (
+                              <motion.div
+                                className="w-2 h-2 bg-blue-400 rounded-full"
+                                animate={{ scale: [1, 1.3, 1] }}
+                                transition={{ duration: 0.6, repeat: Infinity }}
+                              />
+                            ) : (
+                              <div className="w-2 h-2 bg-gray-500 rounded-full" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-medium ${
+                              step.status === 'error' ? 'text-red-400' :
+                              step.status === 'success' ? 'text-white' :
+                              step.status === 'warning' ? 'text-amber-400' :
+                              'text-gray-300'
+                            }`}>
+                              {step.name}
+                            </p>
+                            <p className="text-xs text-gray-600 truncate">{step.detail}</p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                )}
+              </div>
+            </div>
+
+            {/* Footer Info */}
+            <div className="p-4 border-t border-white/5">
+              <div className="bg-[#12121a] rounded-xl p-4 border border-white/5">
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-3">Environment</p>
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Tenant</span>
+                    <span className="text-gray-300 font-mono text-[11px]">qa-aiagentsproducttc1</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Agent</span>
+                    <span className="text-gray-300 font-mono text-[11px]">KK Demo Agent</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Auth Server</span>
+                    <span className="text-gray-300 font-mono text-[11px]">default</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
