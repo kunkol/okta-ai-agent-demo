@@ -756,3 +756,89 @@ async def add_audit_entry(entry: dict):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+# =============================================================================
+# MCP Protocol Endpoints (SSE Transport)
+# =============================================================================
+
+from fastapi.responses import StreamingResponse
+from mcp_protocol import process_mcp_message, MCP_VERSION, SERVER_NAME, SERVER_VERSION
+import json
+
+@app.get("/sse")
+async def mcp_sse_endpoint(request: Request):
+    """
+    MCP Server-Sent Events endpoint.
+    This is the standard MCP transport for Claude Desktop and other MCP clients.
+    """
+    async def event_stream():
+        # Send endpoint info
+        yield f"event: endpoint\ndata: /messages\n\n"
+        
+        # Keep connection alive
+        while True:
+            if await request.is_disconnected():
+                break
+            yield ": keepalive\n\n"
+            await asyncio.sleep(30)
+    
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+@app.post("/messages")
+async def mcp_messages_endpoint(request: Request):
+    """
+    MCP messages endpoint for JSON-RPC communication.
+    Handles initialize, tools/list, and tools/call methods.
+    """
+    try:
+        body = await request.json()
+        response = process_mcp_message(body)
+        return response
+    except Exception as e:
+        logger.error(f"MCP message error: {str(e)}")
+        return {
+            "jsonrpc": "2.0",
+            "id": None,
+            "error": {"code": -32700, "message": f"Parse error: {str(e)}"}
+        }
+
+@app.get("/.well-known/oauth-protected-resource")
+async def oauth_protected_resource():
+    """
+    RFC 9728 Protected Resource Metadata.
+    Tells MCP clients where to authenticate.
+    """
+    return {
+        "resource": "https://okta-ai-agent-demo.onrender.com",
+        "authorization_servers": ["https://qa-aiagentsproducttc1.trexcloud.com/oauth2/default"],
+        "scopes_supported": ["read_data", "write_data", "payments", "analytics", "compliance"],
+        "bearer_methods_supported": ["header"]
+    }
+
+@app.get("/mcp/info")
+async def mcp_info():
+    """MCP Server information endpoint"""
+    return {
+        "name": SERVER_NAME,
+        "version": SERVER_VERSION,
+        "protocol_version": MCP_VERSION,
+        "transport": "sse",
+        "endpoints": {
+            "sse": "/sse",
+            "messages": "/messages",
+            "oauth_metadata": "/.well-known/oauth-protected-resource"
+        },
+        "tools_count": 12,
+        "capabilities": ["tools"]
+    }
+
+import asyncio
