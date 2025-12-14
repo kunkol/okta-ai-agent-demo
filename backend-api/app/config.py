@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: List[str] = [
         "http://localhost:3000",      # Local frontend dev
         "http://localhost:5173",      # Vite dev server
-        "https://*.vercel.app",       # Vercel deployments
+        "https://okta-ai-agent-demo.vercel.app",
         "https://*.onrender.com",     # Render deployments
     ]
     
