@@ -1,0 +1,21 @@
+# Render.com deployment configuration
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: okta-mcp-server
+    runtime: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      # Okta configuration (to be set in C4)
+      - key: OKTA_DOMAIN
+        sync: false
+      - key: OKTA_AUDIENCE
+        sync: false
+    healthCheckPath: /health
+    autoDeploy: true
