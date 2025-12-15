@@ -85,9 +85,9 @@ const IconAlert = ({ className = "w-5 h-5" }: { className?: string }) => (
   </svg>
 );
 
-const IconServer = ({ className = "w-5 h-5" }: { className?: string }) => (
+const IconUser = ({ className = "w-5 h-5" }: { className?: string }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3m-19.5 0a4.5 4.5 0 01.9-2.7L5.737 5.1a3.375 3.375 0 012.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 01.9 2.7m0 0a3 3 0 01-3 3m0 3h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008zm-3 6h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
   </svg>
 );
 
@@ -115,6 +115,18 @@ const IconRefresh = ({ className = "w-5 h-5" }: { className?: string }) => (
   </svg>
 );
 
+const IconDatabase = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
+  </svg>
+);
+
+const IconCloud = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z" />
+  </svg>
+);
+
 // Demo scenarios
 const DEMO_SCENARIOS = [
   { label: 'Customer Lookup - Authorized', query: 'Get customer information for Alice', risk: 'low' },
@@ -125,17 +137,21 @@ const DEMO_SCENARIOS = [
 ];
 
 // Architecture Node Component
-const ArchitectureNode = ({ 
+const ArchNode = ({ 
   label, 
   sublabel, 
   status,
+  size = 'normal',
+  disabled = false,
 }: { 
   label: string; 
   sublabel: string; 
   status: 'idle' | 'processing' | 'success' | 'error';
+  size?: 'small' | 'normal';
+  disabled?: boolean;
 }) => {
   const statusColors = {
-    idle: 'border-white/10 bg-[#14141c]',
+    idle: disabled ? 'border-white/5 bg-[#14141c]/50' : 'border-white/10 bg-[#14141c]',
     processing: 'border-[#007DC1]/50 bg-[#007DC1]/10',
     success: 'border-emerald-500/50 bg-emerald-500/10',
     error: 'border-red-500/50 bg-red-500/10',
@@ -143,51 +159,53 @@ const ArchitectureNode = ({
 
   const glowColors = {
     idle: '',
-    processing: 'shadow-[0_0_40px_rgba(0,125,193,0.4)]',
-    success: 'shadow-[0_0_40px_rgba(16,185,129,0.4)]',
-    error: 'shadow-[0_0_40px_rgba(239,68,68,0.4)]',
+    processing: 'shadow-[0_0_30px_rgba(0,125,193,0.4)]',
+    success: 'shadow-[0_0_30px_rgba(16,185,129,0.4)]',
+    error: 'shadow-[0_0_30px_rgba(239,68,68,0.4)]',
   };
+
+  const sizeClasses = size === 'small' ? 'px-2 py-1' : 'px-4 py-2';
 
   return (
     <motion.div
-      className={`relative px-5 py-3 rounded-lg border-2 transition-all duration-500 ${statusColors[status]} ${glowColors[status]}`}
-      animate={status === 'processing' ? { scale: [1, 1.03, 1] } : {}}
+      className={`relative ${sizeClasses} rounded-lg border transition-all duration-500 ${statusColors[status]} ${glowColors[status]} ${disabled ? 'opacity-40' : ''}`}
+      animate={status === 'processing' ? { scale: [1, 1.02, 1] } : {}}
       transition={{ duration: 0.8, repeat: status === 'processing' ? Infinity : 0 }}
     >
       <div className="text-center">
-        <p className="text-sm font-semibold text-white">{label}</p>
-        <p className="text-[10px] text-gray-500 mt-0.5">{sublabel}</p>
+        <p className={`font-medium text-white ${size === 'small' ? 'text-[10px]' : 'text-xs'}`}>{label}</p>
+        <p className={`text-gray-500 ${size === 'small' ? 'text-[8px]' : 'text-[10px]'}`}>{sublabel}</p>
       </div>
-      {status === 'success' && (
+      {status === 'success' && !disabled && (
         <motion.div 
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
-          className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center"
+          className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-emerald-500 flex items-center justify-center"
         >
-          <IconCheck className="w-2.5 h-2.5 text-white" />
+          <IconCheck className="w-2 h-2 text-white" />
         </motion.div>
       )}
-      {status === 'error' && (
+      {status === 'error' && !disabled && (
         <motion.div 
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
-          className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 flex items-center justify-center"
+          className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500 flex items-center justify-center"
         >
-          <IconX className="w-2.5 h-2.5 text-white" />
+          <IconX className="w-2 h-2 text-white" />
         </motion.div>
       )}
     </motion.div>
   );
 };
 
-// Connection Line with animated particle
-const ConnectionLine = ({ 
+// Connection Line
+const ConnLine = ({ 
   active, 
-  direction = 'right',
+  direction = 'down',
   status = 'idle'
 }: { 
   active: boolean; 
-  direction?: 'right' | 'down';
+  direction?: 'down' | 'right';
   status?: 'idle' | 'processing' | 'success' | 'error';
 }) => {
   const colors = {
@@ -199,13 +217,13 @@ const ConnectionLine = ({
 
   if (direction === 'down') {
     return (
-      <div className="flex justify-center py-1">
-        <div className={`w-0.5 h-6 bg-gradient-to-b ${colors[status]} relative overflow-hidden`}>
+      <div className="flex justify-center py-0.5">
+        <div className={`w-px h-4 bg-gradient-to-b ${colors[status]} relative overflow-hidden`}>
           {active && (
             <motion.div
-              className="absolute w-full h-3 bg-gradient-to-b from-transparent via-white/80 to-transparent"
-              animate={{ top: ['-12px', '24px'] }}
-              transition={{ duration: 0.5, repeat: Infinity, ease: 'linear' }}
+              className="absolute w-full h-2 bg-gradient-to-b from-transparent via-white/80 to-transparent"
+              animate={{ top: ['-8px', '16px'] }}
+              transition={{ duration: 0.4, repeat: Infinity, ease: 'linear' }}
             />
           )}
         </div>
@@ -214,13 +232,13 @@ const ConnectionLine = ({
   }
 
   return (
-    <div className="flex items-center px-1">
-      <div className={`h-0.5 w-8 bg-gradient-to-r ${colors[status]} relative overflow-hidden`}>
+    <div className="flex items-center px-0.5">
+      <div className={`h-px w-4 bg-gradient-to-r ${colors[status]} relative overflow-hidden`}>
         {active && (
           <motion.div
-            className="absolute h-full w-3 bg-gradient-to-r from-transparent via-white/80 to-transparent"
-            animate={{ left: ['-12px', '32px'] }}
-            transition={{ duration: 0.4, repeat: Infinity, ease: 'linear' }}
+            className="absolute h-full w-2 bg-gradient-to-r from-transparent via-white/80 to-transparent"
+            animate={{ left: ['-8px', '16px'] }}
+            transition={{ duration: 0.3, repeat: Infinity, ease: 'linear' }}
           />
         )}
       </div>
@@ -237,7 +255,14 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<'chat' | 'audit'>('chat');
   const [backendStatus, setBackendStatus] = useState<'checking' | 'healthy' | 'degraded' | 'error'>('checking');
   const [metrics, setMetrics] = useState<Metrics>({ requestsSecured: 0, tokensExchanged: 0, threatsBlocked: 0, cibaApprovals: 0 });
-  const [archState, setArchState] = useState({ frontend: 'idle', backend: 'idle', mcp: 'idle', okta: 'idle' } as Record<string, 'idle' | 'processing' | 'success' | 'error'>);
+  const [archState, setArchState] = useState({ 
+    user: 'idle', 
+    app: 'idle', 
+    agent: 'idle', 
+    okta: 'idle', 
+    mcp: 'idle',
+    external: 'idle'
+  } as Record<string, 'idle' | 'processing' | 'success' | 'error'>);
   const [flowActive, setFlowActive] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -281,25 +306,34 @@ export default function Home() {
   const animateArchitecture = async (success: boolean) => {
     setFlowActive(true);
     
-    setArchState(s => ({ ...s, frontend: 'processing' }));
+    // User initiates
+    setArchState(s => ({ ...s, user: 'processing' }));
+    await new Promise(r => setTimeout(r, 200));
+    
+    // App receives
+    setArchState(s => ({ ...s, user: 'success', app: 'processing' }));
     await new Promise(r => setTimeout(r, 300));
     
-    setArchState(s => ({ ...s, frontend: 'success', backend: 'processing' }));
+    // Agent processes
+    setArchState(s => ({ ...s, app: 'success', agent: 'processing' }));
     await new Promise(r => setTimeout(r, 400));
     
+    // Okta auth
     setArchState(s => ({ ...s, okta: 'processing' }));
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 400));
     setArchState(s => ({ ...s, okta: 'success' }));
     
-    setArchState(s => ({ ...s, backend: 'success', mcp: 'processing' }));
+    // MCP call
+    setArchState(s => ({ ...s, agent: 'success', mcp: 'processing' }));
     await new Promise(r => setTimeout(r, 400));
     
+    // Final state
     setArchState(s => ({ ...s, mcp: success ? 'success' : 'error' }));
-    await new Promise(r => setTimeout(r, 600));
+    await new Promise(r => setTimeout(r, 500));
     
     setFlowActive(false);
     setTimeout(() => {
-      setArchState({ frontend: 'idle', backend: 'idle', mcp: 'idle', okta: 'idle' });
+      setArchState({ user: 'idle', app: 'idle', agent: 'idle', okta: 'idle', mcp: 'idle', external: 'idle' });
     }, 2000);
   };
 
@@ -320,7 +354,7 @@ export default function Home() {
     setSecuritySteps([]);
 
     const tokenStepId = addSecurityStep({
-      name: 'Token Exchange',
+      name: 'Token Exchange (XAA)',
       status: 'running',
       detail: 'Initiating Cross-App Access token exchange',
     });
@@ -337,12 +371,21 @@ export default function Home() {
       const isSuccess = fgaResult === 'ALLOWED';
       const hasCiba = data.security_flow?.ciba_approval_required || false;
 
-      animateArchitecture(isSuccess);
+      // Check if access was actually denied in the response
+      const responseText = data.response?.toLowerCase() || '';
+      const wasActuallyDenied = responseText.includes('denied') || 
+                                responseText.includes('unable to retrieve') ||
+                                responseText.includes('access is denied') ||
+                                responseText.includes('don\'t have permission');
+      
+      const finalSuccess = isSuccess && !wasActuallyDenied;
+
+      animateArchitecture(finalSuccess);
 
       setMetrics(m => ({
         requestsSecured: m.requestsSecured + 1,
         tokensExchanged: m.tokensExchanged + 1,
-        threatsBlocked: m.threatsBlocked + (isSuccess ? 0 : 1),
+        threatsBlocked: m.threatsBlocked + (finalSuccess ? 0 : 1),
         cibaApprovals: m.cibaApprovals + (hasCiba ? 1 : 0),
       }));
 
@@ -352,27 +395,29 @@ export default function Home() {
       });
 
       addSecurityStep({
-        name: 'Authorization Decision',
-        status: fgaResult === 'ALLOWED' ? 'success' : 'error',
-        detail: `Policy evaluation: ${fgaResult}`,
+        name: 'Policy Evaluation (FGA)',
+        status: finalSuccess ? 'success' : 'error',
+        detail: finalSuccess ? 'Access Granted' : 'Access Denied',
       });
 
       if (data.tool_executions) {
         data.tool_executions.forEach((tool: any) => {
+          const toolDenied = tool.status === 'denied' || 
+                            (tool.result?.access_level === 'denied');
           addSecurityStep({
-            name: `Resource Access: ${tool.name}`,
-            status: tool.status === 'completed' ? 'success' : 
-                   tool.status === 'denied' ? 'error' : 'warning',
-            detail: `Risk: ${tool.risk_level?.toUpperCase() || 'LOW'}`,
+            name: `Tool: ${tool.name}`,
+            status: toolDenied ? 'error' : 
+                   tool.status === 'completed' ? 'success' : 'warning',
+            detail: toolDenied ? 'Access Denied' : `Risk: ${tool.risk_level?.toUpperCase() || 'LOW'}`,
           });
         });
       }
 
       if (hasCiba) {
         addSecurityStep({
-          name: 'Step-Up Authentication',
+          name: 'Step-Up Auth (CIBA)',
           status: data.security_flow.ciba_approval_status === 'approved' ? 'success' : 'warning',
-          detail: `CIBA: ${data.security_flow.ciba_approval_status || 'Required'}`,
+          detail: `Status: ${data.security_flow.ciba_approval_status || 'Pending Approval'}`,
         });
       }
 
@@ -384,7 +429,7 @@ export default function Home() {
         securityContext: {
           tokenExchange: data.security_flow?.token_exchanged || false,
           targetAudience: data.security_flow?.target_audience || 'mcp-server',
-          fgaCheck: fgaResult,
+          fgaCheck: finalSuccess ? 'ALLOWED' : 'DENIED',
           cibaRequired: hasCiba,
           cibaStatus: data.security_flow?.ciba_approval_status,
           toolsExecuted: data.tool_executions?.map((t: any) => t.name) || [],
@@ -400,7 +445,7 @@ export default function Home() {
         action: input,
         user: 'demo-user',
         resource: data.tool_executions?.[0]?.name || 'chat',
-        decision: isSuccess ? 'allowed' : 'denied',
+        decision: finalSuccess ? 'allowed' : 'denied',
         riskLevel: data.tool_executions?.[0]?.risk_level || 'low',
         auditId: data.audit_id || 'N/A',
       }, ...prev]);
@@ -411,7 +456,7 @@ export default function Home() {
         detail: 'Connection failed' 
       });
 
-      setArchState({ frontend: 'error', backend: 'error', mcp: 'idle', okta: 'idle' });
+      setArchState({ user: 'error', app: 'error', agent: 'idle', okta: 'idle', mcp: 'idle', external: 'idle' });
 
       setMessages(prev => [...prev, {
         id: `msg-${Date.now()}`,
@@ -438,9 +483,9 @@ export default function Home() {
             </div>
             <div>
               <h1 className="text-xl font-semibold text-white tracking-tight">
-                AI Agent Security Gateway
+                Apex Customer 360
               </h1>
-              <p className="text-xs text-gray-500 tracking-wide">Okta Cross-App Access</p>
+              <p className="text-xs text-gray-500 tracking-wide">Enterprise Customer Intelligence Platform</p>
             </div>
           </div>
 
@@ -449,7 +494,7 @@ export default function Home() {
             <div className="hidden lg:flex items-center gap-6 pr-6 border-r border-white/5">
               <div className="text-center">
                 <p className="text-2xl font-semibold text-white tabular-nums">{metrics.requestsSecured}</p>
-                <p className="text-[10px] text-gray-500 uppercase tracking-wider">Secured</p>
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider">Requests</p>
               </div>
               <div className="text-center">
                 <p className="text-2xl font-semibold text-[#00D4AA] tabular-nums">{metrics.tokensExchanged}</p>
@@ -530,7 +575,7 @@ export default function Home() {
                         <IconCpu className="w-10 h-10 text-[#00D4AA]/60" />
                       </div>
                       <h3 className="text-xl font-semibold text-white mb-2">
-                        AI Agent Security Demo
+                        AI-Powered Customer Intelligence
                       </h3>
                       <p className="text-gray-500 text-sm max-w-md text-center mb-8">
                         Execute security scenarios to observe Cross-App Access token exchange, 
@@ -641,7 +686,7 @@ export default function Home() {
                               />
                             ))}
                           </div>
-                          <span className="text-xs text-gray-500">Processing request securely</span>
+                          <span className="text-xs text-gray-500">Processing securely...</span>
                         </div>
                       </div>
                     </motion.div>
@@ -735,35 +780,63 @@ export default function Home() {
           </div>
 
           {/* Right Panel - Architecture & Security Flow */}
-          <div className="w-[400px] flex flex-col bg-[#0a0a0f]">
+          <div className="w-[420px] flex flex-col bg-[#0a0a0f]">
             {/* Architecture Diagram */}
-            <div className="p-5 border-b border-white/5">
+            <div className="p-4 border-b border-white/5">
               <div className="flex items-center gap-2 mb-4">
-                <IconServer className="w-4 h-4 text-[#00D4AA]" />
-                <h2 className="text-sm font-semibold text-white">Live Architecture</h2>
+                <IconDatabase className="w-4 h-4 text-[#00D4AA]" />
+                <h2 className="text-sm font-semibold text-white">Security Architecture</h2>
               </div>
               
               <div className="space-y-0">
+                {/* User */}
                 <div className="flex justify-center">
-                  <ArchitectureNode label="Frontend" sublabel="Vercel" status={archState.frontend as any} />
+                  <ArchNode label="User" sublabel="Employee" status={archState.user as any} />
                 </div>
                 
-                <ConnectionLine active={flowActive} direction="down" status={archState.frontend as any} />
+                <ConnLine active={flowActive} direction="down" status={archState.user as any} />
                 
+                {/* Customer Service App */}
                 <div className="flex justify-center">
-                  <ArchitectureNode label="Backend API" sublabel="Render" status={archState.backend as any} />
+                  <ArchNode label="Customer Service App" sublabel="Next.js" status={archState.app as any} />
                 </div>
                 
-                <div className="flex justify-center py-1">
-                  <div className="flex items-end gap-6">
-                    <ConnectionLine active={flowActive} direction="down" status={archState.okta as any} />
-                    <ConnectionLine active={flowActive} direction="down" status={archState.mcp as any} />
-                  </div>
+                <ConnLine active={flowActive} direction="down" status={archState.app as any} />
+                
+                {/* AI Agent */}
+                <div className="flex justify-center">
+                  <ArchNode label="AI Agent" sublabel="Claude" status={archState.agent as any} />
                 </div>
                 
+                <ConnLine active={flowActive} direction="down" status={archState.agent as any} />
+                
+                {/* Okta */}
+                <div className="flex justify-center">
+                  <ArchNode label="Okta" sublabel="Identity / XAA" status={archState.okta as any} />
+                </div>
+                
+                <ConnLine active={flowActive} direction="down" status={archState.okta as any} />
+                
+                {/* MCP Servers Row */}
                 <div className="flex justify-center gap-3">
-                  <ArchitectureNode label="Okta" sublabel="Identity" status={archState.okta as any} />
-                  <ArchitectureNode label="MCP Server" sublabel="Tools" status={archState.mcp as any} />
+                  {/* Internal MCP */}
+                  <div className="flex flex-col items-center">
+                    <ArchNode label="Internal MCP" sublabel="Enterprise Tools" status={archState.mcp as any} />
+                    <div className="mt-2 flex gap-1">
+                      <span className="px-1.5 py-0.5 text-[8px] bg-[#14141c] border border-white/5 rounded text-gray-400">CRM</span>
+                      <span className="px-1.5 py-0.5 text-[8px] bg-[#14141c] border border-white/5 rounded text-gray-400">Docs</span>
+                      <span className="px-1.5 py-0.5 text-[8px] bg-[#14141c] border border-white/5 rounded text-gray-400">Payments</span>
+                    </div>
+                  </div>
+                  
+                  {/* External SaaS */}
+                  <div className="flex flex-col items-center">
+                    <ArchNode label="External SaaS" sublabel="Coming Soon" status={archState.external as any} disabled={true} />
+                    <div className="mt-2 flex gap-1">
+                      <span className="px-1.5 py-0.5 text-[8px] bg-[#14141c]/50 border border-white/5 rounded text-gray-600">GitHub</span>
+                      <span className="px-1.5 py-0.5 text-[8px] bg-[#14141c]/50 border border-white/5 rounded text-gray-600">Slack</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
