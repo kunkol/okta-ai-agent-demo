@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '@/lib/auth-context';
+import { LoginButton } from '@/components/LoginButton';
 
 // Types
 interface Message {
@@ -278,6 +280,7 @@ const ConnLine = ({
 };
 
 export default function Home() {
+  const { isAuthenticated, user, accessToken } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -393,7 +396,10 @@ export default function Home() {
     try {
       const response = await fetch(`${BACKEND_URL}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}),
+        },
         body: JSON.stringify({ message: input }),
       });
 
@@ -474,7 +480,7 @@ export default function Home() {
         id: `audit-${Date.now()}`,
         timestamp: new Date(),
         action: input,
-        user: 'demo-user',
+        user: user?.email || user?.name || 'demo-user',
         resource: data.tool_executions?.[0]?.name || 'chat',
         decision: finalSuccess ? 'allowed' : 'denied',
         riskLevel: data.tool_executions?.[0]?.risk_level || 'low',
@@ -558,6 +564,11 @@ export default function Home() {
               >
                 <IconRefresh className={`w-4 h-4 text-gray-500 ${backendStatus === 'checking' ? 'animate-spin' : ''}`} />
               </button>
+            </div>
+
+            {/* Login Button */}
+            <div className="pl-4 border-l border-white/5">
+              <LoginButton />
             </div>
           </div>
         </div>
