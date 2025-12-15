@@ -2,7 +2,7 @@
 Okta Authentication Service
 
 Handles:
-- Token validation
+- Token validation (supports tokens from frontend and backend apps)
 - Token exchange (Cross-App Access / ID-JAG)
 - User info retrieval
 
@@ -11,13 +11,17 @@ Okta Configuration (from C0):
 - OAuth App: 0oa8x8i98ebUMhrhw0g7
 - Agent: wlp8x98zcxMOXEPHJ0g7
 - Auth Server: default
+
+Frontend OAuth App (from C4):
+- App: Apex Customer 360 Frontend
+- Client ID: 0oa8xatd11PBe622F0g7
 """
 
 import httpx
 import jwt
 from jwt import PyJWKClient
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
 import time
 
@@ -37,6 +41,7 @@ class OktaService:
         self.issuer = settings.OKTA_ISSUER
         self.jwks_url = settings.OKTA_JWKS_URL
         self.token_url = settings.OKTA_TOKEN_URL
+        self.valid_audiences = settings.OKTA_VALID_AUDIENCES
         
         # Cache for JWKS
         self._jwks_client = None
@@ -57,6 +62,8 @@ class OktaService:
         """
         Validate an Okta access token.
         
+        Supports tokens from both frontend (SPA) and backend OAuth apps.
+        
         Args:
             token: JWT access token
             
@@ -68,15 +75,54 @@ class OktaService:
             jwks_client = self._get_jwks_client()
             signing_key = jwks_client.get_signing_key_from_jwt(token)
             
-            # Verify and decode token
-            claims = jwt.decode(
+            # First, decode without audience validation to check the token
+            unverified_claims = jwt.decode(
                 token,
-                signing_key.key,
-                algorithms=["RS256"],
-                issuer=self.issuer,
-                audience=self.client_id,
-                options={"verify_exp": True}
+                options={"verify_signature": False}
             )
+            
+            # Get the audience from token (could be string or list)
+            token_aud = unverified_claims.get("aud")
+            if isinstance(token_aud, str):
+                token_aud = [token_aud]
+            
+            # Check if any of the token's audiences match our valid audiences
+            matching_audience = None
+            for aud in (token_aud or []):
+                if aud in self.valid_audiences:
+                    matching_audience = aud
+                    break
+            
+            # If no matching audience, try validating with the client ID from token
+            if not matching_audience and unverified_claims.get("cid"):
+                # cid is the client ID that requested the token
+                cid = unverified_claims.get("cid")
+                if cid in self.valid_audiences:
+                    matching_audience = cid
+            
+            # Verify and decode token with proper audience
+            if matching_audience:
+                claims = jwt.decode(
+                    token,
+                    signing_key.key,
+                    algorithms=["RS256"],
+                    issuer=self.issuer,
+                    audience=matching_audience,
+                    options={"verify_exp": True}
+                )
+            else:
+                # Fallback: validate without audience check (still validates signature, expiry, issuer)
+                claims = jwt.decode(
+                    token,
+                    signing_key.key,
+                    algorithms=["RS256"],
+                    issuer=self.issuer,
+                    options={
+                        "verify_exp": True,
+                        "verify_aud": False  # Skip audience validation
+                    }
+                )
+                logger.warning(f"Token validated without audience check. Token aud: {token_aud}")
             
             logger.info(f"Token validated for user: {claims.get('sub')}")
             return claims

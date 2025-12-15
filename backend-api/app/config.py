@@ -7,6 +7,10 @@ Okta Configuration (from C0):
 - Agent (KK Demo Agent UI): wlp8x98zcxMOXEPHJ0g7
 - Auth Server: default
 - Private Key (kid): 0a26ff81-0eb6-43a4-9eb6-1829576211c9
+
+Frontend OAuth App (from C4):
+- App: Apex Customer 360 Frontend
+- Client ID: 0oa8xatd11PBe622F0g7
 """
 
 from pydantic_settings import BaseSettings
@@ -31,11 +35,16 @@ class Settings(BaseSettings):
     # Okta Configuration (from C0)
     # ==========================================================================
     OKTA_DOMAIN: str = "qa-aiagentsproducttc1.trexcloud.com"
-    OKTA_CLIENT_ID: str = "0oa8x8i98ebUMhrhw0g7"  # Test_KK OAuth App
+    OKTA_CLIENT_ID: str = "0oa8x8i98ebUMhrhw0g7"  # Test_KK OAuth App (for agent/backend)
     OKTA_CLIENT_SECRET: str = ""  # Set via environment variable
     OKTA_AUTH_SERVER: str = "default"
     OKTA_AGENT_ID: str = "wlp8x98zcxMOXEPHJ0g7"  # KK Demo Agent UI
     OKTA_PRIVATE_KEY_KID: str = "0a26ff81-0eb6-43a4-9eb6-1829576211c9"
+    
+    # ==========================================================================
+    # Frontend OAuth App (from C4)
+    # ==========================================================================
+    OKTA_FRONTEND_CLIENT_ID: str = "0oa8xatd11PBe622F0g7"  # Apex Customer 360 Frontend
     
     # Okta endpoints (constructed from domain)
     @property
@@ -53,6 +62,15 @@ class Settings(BaseSettings):
     @property
     def OKTA_USERINFO_URL(self) -> str:
         return f"{self.OKTA_ISSUER}/v1/userinfo"
+    
+    @property
+    def OKTA_VALID_AUDIENCES(self) -> List[str]:
+        """List of valid token audiences (frontend and backend client IDs)."""
+        return [
+            self.OKTA_CLIENT_ID,           # Backend/Agent client ID
+            self.OKTA_FRONTEND_CLIENT_ID,  # Frontend SPA client ID
+            "api://default",               # Default API audience
+        ]
     
     # ==========================================================================
     # CORS Configuration
