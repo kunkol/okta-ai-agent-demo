@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     OKTA_AGENT_ID: str = "wlp8x98zcxMOXEPHJ0g7"  # KK Demo Agent UI
     OKTA_PRIVATE_KEY_KID: str = "0a26ff81-0eb6-43a4-9eb6-1829576211c9"
     
+    # Agent private key for XAA token exchange (JSON string)
+    # Set via OKTA_AGENT_PRIVATE_KEY environment variable
+    OKTA_AGENT_PRIVATE_KEY: str = ""
+    
     # ==========================================================================
     # Frontend OAuth App (from C4)
     # ==========================================================================

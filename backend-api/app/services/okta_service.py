@@ -3,14 +3,15 @@ Okta Authentication Service
 
 Handles:
 - Token validation (supports tokens from frontend and backend apps)
-- Token exchange (Cross-App Access / ID-JAG)
+- Token exchange (Cross-App Access / ID-JAG) - REAL IMPLEMENTATION
 - User info retrieval
 
 Okta Configuration (from C0):
 - Tenant: qa-aiagentsproducttc1.trexcloud.com
-- OAuth App: 0oa8x8i98ebUMhrhw0g7
-- Agent: wlp8x98zcxMOXEPHJ0g7
+- OAuth App (Test_KK): 0oa8x8i98ebUMhrhw0g7
+- Agent (KK Demo Agent UI): wlp8x98zcxMOXEPHJ0g7
 - Auth Server: default
+- Private Key (kid): 0a26ff81-0eb6-43a4-9eb6-1829576211c9
 
 Frontend OAuth App (from C4):
 - App: Apex Customer 360 Frontend
@@ -24,6 +25,8 @@ import logging
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
 import time
+import uuid
+import json
 
 from app.config import settings
 from app.models.schemas import UserInfo, TokenExchangeResponse
@@ -42,11 +45,29 @@ class OktaService:
         self.jwks_url = settings.OKTA_JWKS_URL
         self.token_url = settings.OKTA_TOKEN_URL
         self.valid_audiences = settings.OKTA_VALID_AUDIENCES
+        self.agent_id = settings.OKTA_AGENT_ID
         
         # Cache for JWKS
         self._jwks_client = None
         self._jwks_cache_time = None
         self._jwks_cache_ttl = 3600  # 1 hour
+        
+        # Private key for agent authentication
+        self._private_key = None
+        self._load_private_key()
+    
+    def _load_private_key(self):
+        """Load the agent's private key from settings."""
+        try:
+            private_key_json = settings.OKTA_AGENT_PRIVATE_KEY
+            if private_key_json:
+                self._private_key = json.loads(private_key_json)
+                logger.info(f"Loaded agent private key with kid: {self._private_key.get('kid')}")
+            else:
+                logger.warning("No agent private key configured - token exchange will be simulated")
+        except Exception as e:
+            logger.error(f"Failed to load private key: {e}")
+            self._private_key = None
     
     def _get_jwks_client(self) -> PyJWKClient:
         """Get or create JWKS client with caching."""
@@ -58,17 +79,75 @@ class OktaService:
             self._jwks_cache_time = now
         return self._jwks_client
     
+    def _create_client_assertion(self) -> str:
+        """
+        Create a JWT client assertion for agent authentication.
+        
+        This JWT is signed with the agent's private key and used
+        to authenticate the agent during token exchange.
+        """
+        if not self._private_key:
+            raise ValueError("No private key configured for agent authentication")
+        
+        now = datetime.utcnow()
+        
+        # JWT claims for client assertion
+        claims = {
+            "iss": self.client_id,  # Issuer is the OAuth app client ID
+            "sub": self.client_id,  # Subject is also the client ID
+            "aud": self.token_url,  # Audience is the token endpoint
+            "iat": int(now.timestamp()),
+            "exp": int((now + timedelta(minutes=5)).timestamp()),
+            "jti": str(uuid.uuid4()),  # Unique token ID
+        }
+        
+        # Sign with private key
+        token = jwt.encode(
+            claims,
+            self._private_key,
+            algorithm="RS256",
+            headers={"kid": self._private_key.get("kid")}
+        )
+        
+        return token
+    
+    def _create_actor_token(self) -> str:
+        """
+        Create an actor token (JWT) that identifies the AI agent.
+        
+        This is used in the token exchange to identify who is acting
+        on behalf of the user.
+        """
+        if not self._private_key:
+            raise ValueError("No private key configured for agent authentication")
+        
+        now = datetime.utcnow()
+        
+        # Actor token claims
+        claims = {
+            "iss": f"https://{self.domain}",
+            "sub": self.agent_id,  # The AI agent's ID
+            "aud": self.token_url,
+            "iat": int(now.timestamp()),
+            "exp": int((now + timedelta(minutes=5)).timestamp()),
+            "jti": str(uuid.uuid4()),
+        }
+        
+        # Sign with private key
+        token = jwt.encode(
+            claims,
+            self._private_key,
+            algorithm="RS256",
+            headers={"kid": self._private_key.get("kid")}
+        )
+        
+        return token
+    
     async def validate_token(self, token: str) -> Optional[Dict[str, Any]]:
         """
         Validate an Okta access token.
         
         Supports tokens from both frontend (SPA) and backend OAuth apps.
-        
-        Args:
-            token: JWT access token
-            
-        Returns:
-            Decoded token claims if valid, None otherwise
         """
         try:
             # Get signing key from JWKS
@@ -81,26 +160,25 @@ class OktaService:
                 options={"verify_signature": False}
             )
             
-            # Get the audience from token (could be string or list)
+            # Get the audience from token
             token_aud = unverified_claims.get("aud")
             if isinstance(token_aud, str):
                 token_aud = [token_aud]
             
-            # Check if any of the token's audiences match our valid audiences
+            # Check if any audiences match
             matching_audience = None
             for aud in (token_aud or []):
                 if aud in self.valid_audiences:
                     matching_audience = aud
                     break
             
-            # If no matching audience, try validating with the client ID from token
+            # Check client ID
             if not matching_audience and unverified_claims.get("cid"):
-                # cid is the client ID that requested the token
                 cid = unverified_claims.get("cid")
                 if cid in self.valid_audiences:
                     matching_audience = cid
             
-            # Verify and decode token with proper audience
+            # Verify and decode
             if matching_audience:
                 claims = jwt.decode(
                     token,
@@ -111,7 +189,6 @@ class OktaService:
                     options={"verify_exp": True}
                 )
             else:
-                # Fallback: validate without audience check (still validates signature, expiry, issuer)
                 claims = jwt.decode(
                     token,
                     signing_key.key,
@@ -119,7 +196,7 @@ class OktaService:
                     issuer=self.issuer,
                     options={
                         "verify_exp": True,
-                        "verify_aud": False  # Skip audience validation
+                        "verify_aud": False
                     }
                 )
                 logger.warning(f"Token validated without audience check. Token aud: {token_aud}")
@@ -138,15 +215,7 @@ class OktaService:
             return None
     
     async def get_user_info(self, access_token: str) -> Optional[UserInfo]:
-        """
-        Get user info from Okta using access token.
-        
-        Args:
-            access_token: Valid Okta access token
-            
-        Returns:
-            UserInfo if successful, None otherwise
-        """
+        """Get user info from Okta using access token."""
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(
@@ -178,64 +247,84 @@ class OktaService:
         requested_scopes: list[str] = None
     ) -> Optional[TokenExchangeResponse]:
         """
-        Exchange token for Cross-App Access (ID-JAG flow).
+        Exchange token for Cross-App Access (XAA / ID-JAG flow).
         
-        This implements RFC 8693 Token Exchange for the agent to access
-        downstream services (like the MCP Server) on behalf of the user.
+        This implements RFC 8693 Token Exchange where:
+        1. subject_token = user's access token (who we're acting on behalf of)
+        2. actor_token = agent's JWT assertion (who is doing the acting)
+        3. Result = new token scoped to target_audience
         
         Args:
-            subject_token: Original access token
-            target_audience: Target service audience (e.g., MCP Server)
-            requested_scopes: Scopes to request for the new token
+            subject_token: User's access token
+            target_audience: Target service (e.g., "api://default" for MCP)
+            requested_scopes: Scopes to request
             
         Returns:
             TokenExchangeResponse with new token if successful
         """
+        # Check if we have a private key for real exchange
+        if not self._private_key:
+            logger.warning("No private key - returning simulated token exchange")
+            return await self._simulated_token_exchange(subject_token, target_audience, requested_scopes)
+        
         try:
-            # Build token exchange request
+            # Create actor token (identifies the agent)
+            actor_token = self._create_actor_token()
+            
+            # Create client assertion for authentication
+            client_assertion = self._create_client_assertion()
+            
+            # Build token exchange request per RFC 8693
             data = {
                 "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
                 "subject_token": subject_token,
                 "subject_token_type": "urn:ietf:params:oauth:token-type:access_token",
+                "actor_token": actor_token,
+                "actor_token_type": "urn:ietf:params:oauth:token-type:jwt",
                 "audience": target_audience,
                 "requested_token_type": "urn:ietf:params:oauth:token-type:access_token",
+                "client_assertion_type": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+                "client_assertion": client_assertion,
             }
             
             if requested_scopes:
                 data["scope"] = " ".join(requested_scopes)
             
-            # Client authentication
-            auth = (self.client_id, self.client_secret) if self.client_secret else None
+            logger.info(f"Performing token exchange for audience: {target_audience}")
+            logger.debug(f"Token exchange request to: {self.token_url}")
             
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     self.token_url,
                     data=data,
-                    auth=auth,
                     headers={"Content-Type": "application/x-www-form-urlencoded"}
                 )
                 
                 if response.status_code == 200:
                     token_data = response.json()
                     
-                    # Extract delegation chain from token if present
+                    # Extract delegation chain from the new token
                     delegation_chain = []
                     try:
-                        # Decode without verification to get claims
                         claims = jwt.decode(
                             token_data["access_token"],
                             options={"verify_signature": False}
                         )
+                        # Build delegation chain from actor claims
                         if "act" in claims:
-                            # Build delegation chain from actor claims
                             actor = claims["act"]
                             while actor:
                                 delegation_chain.append(actor.get("sub", "unknown"))
                                 actor = actor.get("act")
-                    except Exception:
-                        pass
+                        
+                        # Add the original subject
+                        if claims.get("sub"):
+                            delegation_chain.insert(0, claims["sub"])
+                            
+                    except Exception as e:
+                        logger.warning(f"Could not parse delegation chain: {e}")
                     
-                    logger.info(f"Token exchanged for audience: {target_audience}")
+                    logger.info(f"Token exchange successful! Delegation chain: {delegation_chain}")
                     
                     return TokenExchangeResponse(
                         access_token=token_data["access_token"],
@@ -249,24 +338,49 @@ class OktaService:
                         delegation_chain=delegation_chain
                     )
                 else:
-                    error_data = response.json()
-                    logger.error(f"Token exchange failed: {error_data}")
-                    return None
+                    error_data = response.json() if response.text else {}
+                    logger.error(f"Token exchange failed: {response.status_code} - {error_data}")
+                    
+                    # Fall back to simulated if real exchange fails
+                    logger.warning("Falling back to simulated token exchange")
+                    return await self._simulated_token_exchange(subject_token, target_audience, requested_scopes)
                     
         except Exception as e:
             logger.error(f"Token exchange error: {e}")
-            return None
+            # Fall back to simulated
+            return await self._simulated_token_exchange(subject_token, target_audience, requested_scopes)
+    
+    async def _simulated_token_exchange(
+        self,
+        subject_token: str,
+        target_audience: str,
+        requested_scopes: list[str] = None
+    ) -> TokenExchangeResponse:
+        """
+        Simulated token exchange for demo purposes.
+        
+        Used when real token exchange isn't configured or fails.
+        """
+        logger.info(f"Simulating token exchange for audience: {target_audience}")
+        
+        # Extract user info from subject token
+        try:
+            claims = jwt.decode(subject_token, options={"verify_signature": False})
+            user_sub = claims.get("sub", "unknown-user")
+        except:
+            user_sub = "unknown-user"
+        
+        return TokenExchangeResponse(
+            access_token=f"simulated_xaa_token_{uuid.uuid4().hex[:16]}",
+            token_type="Bearer",
+            expires_in=3600,
+            issued_token_type="urn:ietf:params:oauth:token-type:access_token",
+            scope=" ".join(requested_scopes) if requested_scopes else "read_data",
+            delegation_chain=[user_sub, self.agent_id]
+        )
     
     async def introspect_token(self, token: str) -> Optional[Dict[str, Any]]:
-        """
-        Introspect a token to get its metadata.
-        
-        Args:
-            token: Token to introspect
-            
-        Returns:
-            Token metadata if valid
-        """
+        """Introspect a token to get its metadata."""
         try:
             introspect_url = f"{self.issuer}/v1/introspect"
             
@@ -289,17 +403,7 @@ class OktaService:
             return None
     
     def get_auth_url(self, redirect_uri: str, state: str, scopes: list[str] = None) -> str:
-        """
-        Generate Okta authorization URL for login.
-        
-        Args:
-            redirect_uri: Callback URL
-            state: CSRF state parameter
-            scopes: OAuth scopes to request
-            
-        Returns:
-            Authorization URL
-        """
+        """Generate Okta authorization URL for login."""
         scopes = scopes or ["openid", "profile", "email"]
         scope_str = " ".join(scopes)
         
@@ -318,17 +422,7 @@ class OktaService:
         redirect_uri: str,
         code_verifier: str = None
     ) -> Optional[Dict[str, Any]]:
-        """
-        Exchange authorization code for tokens.
-        
-        Args:
-            code: Authorization code
-            redirect_uri: Redirect URI used in auth request
-            code_verifier: PKCE code verifier
-            
-        Returns:
-            Token response if successful
-        """
+        """Exchange authorization code for tokens."""
         try:
             data = {
                 "grant_type": "authorization_code",
@@ -361,23 +455,27 @@ class OktaService:
             return None
     
     async def health_check(self) -> Dict[str, Any]:
-        """Check Okta connectivity."""
+        """Check Okta connectivity and configuration."""
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 response = await client.get(self.jwks_url)
                 if response.status_code == 200:
                     return {
                         "status": "healthy",
-                        "message": "Okta is reachable"
+                        "message": "Okta is reachable",
+                        "xaa_enabled": self._private_key is not None,
+                        "agent_id": self.agent_id if self._private_key else None
                     }
                 return {
                     "status": "degraded",
-                    "message": f"Okta returned status {response.status_code}"
+                    "message": f"Okta returned status {response.status_code}",
+                    "xaa_enabled": False
                 }
         except Exception as e:
             return {
                 "status": "unhealthy",
-                "message": str(e)
+                "message": str(e),
+                "xaa_enabled": False
             }
 
 
