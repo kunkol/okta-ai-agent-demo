@@ -136,20 +136,20 @@ const DEMO_SCENARIOS = [
     risk: 'low' 
   },
   { 
-    label: 'Process small refund', 
-    description: '$450 - auto-approved under $500 limit',
-    query: 'Initiate a payment of $450 to Alice for customer refund', 
+    label: 'Process standard refund', 
+    description: '$5,000 - approved with enhanced monitoring',
+    query: 'Initiate a payment of $5000 to Alice for customer refund', 
     risk: 'medium' 
   },
   { 
     label: 'Process large refund', 
-    description: '$1,500 - requires manager approval',
-    query: 'Initiate a payment of $1500 to customer for escalated refund case', 
+    description: '$15,000 - requires manager approval (CIBA)',
+    query: 'Initiate a payment of $15000 to customer for escalated refund case', 
     risk: 'critical' 
   },
   { 
     label: 'Search product documentation', 
-    description: 'Find policies in knowledge base',
+    description: 'Results filtered by access level',
     query: 'Search for documents about security policies', 
     risk: 'low' 
   },
@@ -160,10 +160,10 @@ const DEMO_SCENARIOS = [
     risk: 'high' 
   },
   { 
-    label: 'View executive account', 
-    description: 'Restricted to senior reps only',
+    label: 'View partner account', 
+    description: 'Partial access - sensitive fields redacted',
     query: 'Get customer information for Bob', 
-    risk: 'high' 
+    risk: 'medium' 
   },
 ];
 
