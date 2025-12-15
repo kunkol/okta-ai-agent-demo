@@ -5,6 +5,8 @@ Integrates with Anthropic's Claude API for:
 - Intelligent tool orchestration
 - Natural language understanding
 - Security-aware responses
+
+Supports Cross-App Access (XAA) by passing user tokens to MCP client.
 """
 
 import anthropic
@@ -68,7 +70,8 @@ When using tools:
         self,
         message: str,
         conversation_history: List[Dict[str, str]] = None,
-        user_context: Optional[Dict[str, Any]] = None
+        user_context: Optional[Dict[str, Any]] = None,
+        user_token: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Process a user message and return response with tool calls.
@@ -77,6 +80,7 @@ When using tools:
             message: User's message
             conversation_history: Previous messages in the conversation
             user_context: User information from Okta token
+            user_token: User's access token for XAA token exchange
             
         Returns:
             Dict containing response, tool_calls, and metadata
@@ -102,6 +106,7 @@ When using tools:
         
         tool_calls = []
         final_response = ""
+        xaa_performed = False
         
         try:
             # Initial Claude call
@@ -151,13 +156,21 @@ When using tools:
                             "note": "In production, this would trigger CIBA approval flow"
                         }
                     else:
-                        # Execute the tool via MCP Server
-                        mcp_response = await mcp_client.call_tool(tool_name, tool_input)
+                        # Execute the tool via MCP Server with XAA token exchange
+                        mcp_response = await mcp_client.call_tool(
+                            tool_name, 
+                            tool_input,
+                            user_token=user_token  # Pass user token for XAA
+                        )
                         
                         if mcp_response.success:
                             tool_call.status = ToolCallStatus.COMPLETED
                             tool_call.tool_output = mcp_response.result
                             tool_result = mcp_response.result
+                            
+                            # Track if XAA was performed
+                            if hasattr(mcp_response, 'xaa_token_used') and mcp_response.xaa_token_used:
+                                xaa_performed = True
                         else:
                             tool_call.status = ToolCallStatus.FAILED
                             tool_result = {"error": mcp_response.error}
@@ -192,6 +205,7 @@ When using tools:
             return {
                 "response": final_response,
                 "tool_calls": tool_calls,
+                "xaa_performed": xaa_performed,
                 "usage": {
                     "input_tokens": response.usage.input_tokens,
                     "output_tokens": response.usage.output_tokens

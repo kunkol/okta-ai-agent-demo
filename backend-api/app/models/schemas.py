@@ -216,6 +216,7 @@ class MCPToolCallResponse(BaseModel):
     result: Optional[Any] = None
     error: Optional[str] = None
     execution_time_ms: int
+    xaa_token_used: bool = Field(default=False, description="Whether XAA token exchange was performed")
 
 
 # =============================================================================

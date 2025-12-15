@@ -3,13 +3,14 @@ Chat endpoints with Claude AI integration.
 
 This is the main endpoint that:
 1. Receives user messages
-2. Sends to Claude AI
-3. Claude decides which MCP tools to call
-4. Executes tools via MCP Server (C1)
-5. Returns response with security flow data
+2. Extracts user token from Authorization header
+3. Sends to Claude AI
+4. Claude decides which MCP tools to call
+5. Performs XAA token exchange before calling MCP tools
+6. Returns response with security flow data
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Header
 from typing import Optional
 import uuid
 import logging
@@ -33,25 +34,36 @@ logger = logging.getLogger(__name__)
 conversations = {}
 
 
+def extract_token(authorization: Optional[str]) -> Optional[str]:
+    """Extract Bearer token from Authorization header."""
+    if authorization and authorization.startswith("Bearer "):
+        return authorization[7:]
+    return None
+
+
 @router.post("", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
-    user: Optional[UserInfo] = Depends(get_current_user)
+    user: Optional[UserInfo] = Depends(get_current_user),
+    authorization: Optional[str] = Header(None)
 ):
     """
     Process a chat message with Claude AI.
     
     Flow:
     1. Receive user message
-    2. Get conversation history
-    3. Send to Claude with available MCP tools
-    4. Claude decides which tools to call
-    5. Execute tools via MCP Server
-    6. Return response with security flow visualization
+    2. Extract user token from Authorization header
+    3. Get conversation history
+    4. Send to Claude with available MCP tools
+    5. Claude decides which tools to call
+    6. Perform XAA token exchange (user token -> MCP token)
+    7. Execute tools via MCP Server with exchanged token
+    8. Return response with security flow visualization
     
     Args:
         request: Chat request with message
         user: Optional authenticated user
+        authorization: Authorization header with Bearer token
         
     Returns:
         ChatResponse with AI response, tool calls, and security data
@@ -61,6 +73,9 @@ async def chat(
     
     # Get conversation history
     history = conversations.get(conversation_id, [])
+    
+    # Extract user token for XAA
+    user_token = extract_token(authorization)
     
     # Build user context
     user_context = None
@@ -82,15 +97,22 @@ async def chat(
     )
     
     try:
-        # Process message with Claude
+        # Process message with Claude, passing user token for XAA
         result = await claude_service.process_message(
             message=request.message,
             conversation_history=history,
-            user_context=user_context
+            user_context=user_context,
+            user_token=user_token  # Pass token for XAA exchange
         )
         
         # Build security flow data
         security_flow = SecurityFlow()
+        
+        # Check if XAA was performed
+        if result.get("xaa_performed"):
+            security_flow.token_exchanged = True
+            security_flow.target_audience = "api://default"
+            logger.info("XAA token exchange was performed for this request")
         
         # Process tool calls and build security flow
         tool_calls = result.get("tool_calls", [])
@@ -109,7 +131,7 @@ async def chat(
             # Update security flow based on tool calls
             if tool_call.status == ToolCallStatus.COMPLETED:
                 security_flow.token_exchanged = True
-                security_flow.target_audience = "mcp-server"
+                security_flow.target_audience = "api://default"
                 security_flow.fga_check_result = "ALLOWED"
             elif tool_call.status == ToolCallStatus.REQUIRES_APPROVAL:
                 security_flow.ciba_approval_required = True
@@ -139,6 +161,7 @@ async def chat(
             conversation_id=conversation_id,
             security_context={
                 "tool_calls_count": len(tool_calls),
+                "xaa_performed": result.get("xaa_performed", False),
                 "tokens_used": result.get("usage", {})
             }
         )
@@ -163,7 +186,8 @@ async def chat(
 @router.post("/authenticated", response_model=ChatResponse)
 async def authenticated_chat(
     request: ChatRequest,
-    user: UserInfo = Depends(require_auth)
+    user: UserInfo = Depends(require_auth),
+    authorization: str = Header(...)
 ):
     """
     Authenticated chat endpoint.
@@ -172,7 +196,7 @@ async def authenticated_chat(
     Useful for production scenarios.
     """
     request.user_id = user.sub
-    return await chat(request, user)
+    return await chat(request, user, authorization)
 
 
 @router.get("/tools")
@@ -201,12 +225,14 @@ async def get_available_tools():
 async def call_tool_directly(
     tool_name: str,
     arguments: dict,
-    user: Optional[UserInfo] = Depends(get_current_user)
+    user: Optional[UserInfo] = Depends(get_current_user),
+    authorization: Optional[str] = Header(None)
 ):
     """
     Call an MCP tool directly (for testing).
     
     Bypasses Claude AI and calls the tool directly.
+    Supports XAA token exchange if Authorization header is provided.
     """
     # Check if approval is required
     requires_approval, reason = mcp_client.requires_approval(tool_name, arguments)
@@ -226,8 +252,11 @@ async def call_tool_directly(
             "note": "In production, this would trigger CIBA flow"
         }
     
-    # Execute the tool
-    result = await mcp_client.call_tool(tool_name, arguments)
+    # Extract user token for XAA
+    user_token = extract_token(authorization)
+    
+    # Execute the tool with XAA
+    result = await mcp_client.call_tool(tool_name, arguments, user_token=user_token)
     
     # Log the call
     audit_service.log_tool_call(
