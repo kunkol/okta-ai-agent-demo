@@ -21,17 +21,59 @@ Frontend OAuth App (from C4):
 import httpx
 import jwt
 from jwt import PyJWKClient
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.backends import default_backend
 import logging
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
 import time
 import uuid
 import json
+import base64
 
 from app.config import settings
 from app.models.schemas import UserInfo, TokenExchangeResponse
 
 logger = logging.getLogger(__name__)
+
+
+def base64url_decode(input_str: str) -> bytes:
+    """Decode base64url string to bytes."""
+    # Add padding if needed
+    padding = 4 - len(input_str) % 4
+    if padding != 4:
+        input_str += '=' * padding
+    return base64.urlsafe_b64decode(input_str)
+
+
+def jwk_to_pem(jwk: Dict[str, Any]) -> bytes:
+    """Convert JWK to PEM format for RSA private key."""
+    # Extract the key components
+    n = int.from_bytes(base64url_decode(jwk['n']), 'big')
+    e = int.from_bytes(base64url_decode(jwk['e']), 'big')
+    d = int.from_bytes(base64url_decode(jwk['d']), 'big')
+    p = int.from_bytes(base64url_decode(jwk['p']), 'big')
+    q = int.from_bytes(base64url_decode(jwk['q']), 'big')
+    dp = int.from_bytes(base64url_decode(jwk['dp']), 'big')
+    dq = int.from_bytes(base64url_decode(jwk['dq']), 'big')
+    qi = int.from_bytes(base64url_decode(jwk['qi']), 'big')
+    
+    # Create RSA private key
+    from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateNumbers, RSAPublicNumbers
+    
+    public_numbers = RSAPublicNumbers(e, n)
+    private_numbers = RSAPrivateNumbers(p, q, d, dp, dq, qi, public_numbers)
+    private_key = private_numbers.private_key(default_backend())
+    
+    # Convert to PEM
+    pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+    
+    return pem
 
 
 class OktaService:
@@ -52,22 +94,25 @@ class OktaService:
         self._jwks_cache_time = None
         self._jwks_cache_ttl = 3600  # 1 hour
         
-        # Private key for agent authentication
-        self._private_key = None
+        # Private key for agent authentication (PEM format)
+        self._private_key_pem = None
+        self._private_key_kid = None
         self._load_private_key()
     
     def _load_private_key(self):
-        """Load the agent's private key from settings."""
+        """Load the agent's private key from settings and convert to PEM."""
         try:
             private_key_json = settings.OKTA_AGENT_PRIVATE_KEY
             if private_key_json:
-                self._private_key = json.loads(private_key_json)
-                logger.info(f"Loaded agent private key with kid: {self._private_key.get('kid')}")
+                jwk = json.loads(private_key_json)
+                self._private_key_kid = jwk.get('kid')
+                self._private_key_pem = jwk_to_pem(jwk)
+                logger.info(f"Loaded agent private key with kid: {self._private_key_kid}")
             else:
                 logger.warning("No agent private key configured - token exchange will be simulated")
         except Exception as e:
             logger.error(f"Failed to load private key: {e}")
-            self._private_key = None
+            self._private_key_pem = None
     
     def _get_jwks_client(self) -> PyJWKClient:
         """Get or create JWKS client with caching."""
@@ -86,7 +131,7 @@ class OktaService:
         This JWT is signed with the agent's private key and used
         to authenticate the agent during token exchange.
         """
-        if not self._private_key:
+        if not self._private_key_pem:
             raise ValueError("No private key configured for agent authentication")
         
         now = datetime.utcnow()
@@ -101,12 +146,12 @@ class OktaService:
             "jti": str(uuid.uuid4()),  # Unique token ID
         }
         
-        # Sign with private key
+        # Sign with private key (PEM format)
         token = jwt.encode(
             claims,
-            self._private_key,
+            self._private_key_pem,
             algorithm="RS256",
-            headers={"kid": self._private_key.get("kid")}
+            headers={"kid": self._private_key_kid}
         )
         
         return token
@@ -118,7 +163,7 @@ class OktaService:
         This is used in the token exchange to identify who is acting
         on behalf of the user.
         """
-        if not self._private_key:
+        if not self._private_key_pem:
             raise ValueError("No private key configured for agent authentication")
         
         now = datetime.utcnow()
@@ -133,12 +178,12 @@ class OktaService:
             "jti": str(uuid.uuid4()),
         }
         
-        # Sign with private key
+        # Sign with private key (PEM format)
         token = jwt.encode(
             claims,
-            self._private_key,
+            self._private_key_pem,
             algorithm="RS256",
-            headers={"kid": self._private_key.get("kid")}
+            headers={"kid": self._private_key_kid}
         )
         
         return token
@@ -263,7 +308,7 @@ class OktaService:
             TokenExchangeResponse with new token if successful
         """
         # Check if we have a private key for real exchange
-        if not self._private_key:
+        if not self._private_key_pem:
             logger.warning("No private key - returning simulated token exchange")
             return await self._simulated_token_exchange(subject_token, target_audience, requested_scopes)
         
@@ -463,8 +508,8 @@ class OktaService:
                     return {
                         "status": "healthy",
                         "message": "Okta is reachable",
-                        "xaa_enabled": self._private_key is not None,
-                        "agent_id": self.agent_id if self._private_key else None
+                        "xaa_enabled": self._private_key_pem is not None,
+                        "agent_id": self.agent_id if self._private_key_pem else None
                     }
                 return {
                     "status": "degraded",
