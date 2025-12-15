@@ -132,31 +132,31 @@ const DEMO_SCENARIOS = [
   { 
     label: 'Help customer on a call', 
     description: 'Pull up account, contract, and payment history',
-    query: 'Look up Alice Johnson account details for the support call - show contract info, revenue, and payment history', 
+    query: 'Get customer information for Alice', 
     risk: 'low' 
   },
   { 
     label: 'Access flagged account', 
     description: 'Customer under compliance hold',
-    query: 'Access Charlie account information - need to review their contract details', 
+    query: 'Get customer information for Charlie', 
     risk: 'high' 
   },
   { 
     label: 'Process small refund', 
     description: '$450 - auto-approved under $500 limit',
-    query: 'Issue a $450 refund to customer Alice Johnson for service dissatisfaction', 
+    query: 'Initiate a payment of $450 to Alice for customer refund', 
     risk: 'medium' 
   },
   { 
     label: 'Process large refund', 
     description: '$1,500 - requires manager approval',
-    query: 'Issue a $1,500 refund to customer for major service complaint - escalated case', 
+    query: 'Initiate a payment of $1500 to customer for escalated refund case', 
     risk: 'critical' 
   },
   { 
     label: 'Answer product question', 
     description: 'Search knowledge base for policies',
-    query: 'Search knowledge base for refund policy and return procedures', 
+    query: 'Search for documents about refund policy', 
     risk: 'low' 
   },
 ];
