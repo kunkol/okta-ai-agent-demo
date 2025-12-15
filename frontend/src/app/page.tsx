@@ -138,13 +138,13 @@ const DEMO_SCENARIOS = [
   { 
     label: 'Process standard refund', 
     description: '$5,000 - approved with enhanced monitoring',
-    query: 'Initiate a payment of $5000 to Alice for customer refund', 
+    query: 'Initiate a payment of $5000 to Bob Smith', 
     risk: 'medium' 
   },
   { 
     label: 'Process large refund', 
     description: '$15,000 - requires manager approval (CIBA)',
-    query: 'Initiate a payment of $15000 to customer for escalated refund case', 
+    query: 'Initiate a payment of $15000 to Bob Smith', 
     risk: 'critical' 
   },
   { 
@@ -161,9 +161,9 @@ const DEMO_SCENARIOS = [
   },
   { 
     label: 'View partner account', 
-    description: 'Partial access - sensitive fields redacted',
+    description: 'Full access - Professional tier customer',
     query: 'Get customer information for Bob', 
-    risk: 'medium' 
+    risk: 'low' 
   },
 ];
 
