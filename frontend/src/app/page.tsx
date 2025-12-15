@@ -136,12 +136,6 @@ const DEMO_SCENARIOS = [
     risk: 'low' 
   },
   { 
-    label: 'Access flagged account', 
-    description: 'Customer under compliance hold',
-    query: 'Get customer information for Charlie', 
-    risk: 'high' 
-  },
-  { 
     label: 'Process small refund', 
     description: '$450 - auto-approved under $500 limit',
     query: 'Initiate a payment of $450 to Alice for customer refund', 
@@ -154,10 +148,22 @@ const DEMO_SCENARIOS = [
     risk: 'critical' 
   },
   { 
-    label: 'Answer product question', 
-    description: 'Search knowledge base for policies',
-    query: 'Search for documents about refund policy', 
+    label: 'Search product documentation', 
+    description: 'Find policies in knowledge base',
+    query: 'Search for documents about security policies', 
     risk: 'low' 
+  },
+  { 
+    label: 'Access restricted record', 
+    description: 'Account under compliance review',
+    query: 'Get customer information for Charlie', 
+    risk: 'high' 
+  },
+  { 
+    label: 'View executive account', 
+    description: 'Restricted to senior reps only',
+    query: 'Get customer information for Bob', 
+    risk: 'high' 
   },
 ];
 
@@ -962,9 +968,12 @@ export default function Home() {
                 </p>
               </div>
             </div>
-            <div className="text-right max-w-md">
-              <p className="text-[11px] text-gray-500">
-                Demonstrating Cross-App Access (XAA), Fine-Grained Authorization (FGA), and CIBA step-up authentication for AI Agent security.
+            <div className="text-right max-w-lg">
+              <p className="text-[11px] text-gray-400">
+                <span className="text-[#00D4AA]">Okta for AI Agents</span> | Securing machine-speed operations at 5,000+ actions/min
+              </p>
+              <p className="text-[10px] text-gray-600 mt-0.5">
+                Cross-App Access (XAA) | Fine-Grained Authorization (FGA) | Step-Up Auth (CIBA) | Token Vault
               </p>
             </div>
           </div>
