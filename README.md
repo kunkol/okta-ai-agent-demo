@@ -16,20 +16,29 @@ Enterprise Customer Intelligence Platform demonstrating AI Agent security with O
 
 This demo showcases how Okta secures AI Agents operating at machine speed (5,000+ operations/minute) through:
 
-- **Cross-App Access (XAA)** - Secure token exchange between services
-- **Fine-Grained Authorization (FGA)** - Attribute-based access control
-- **CIBA Step-Up Auth** - Human-in-the-loop for high-risk operations
-- **Token Vault** - Secure credential management for external services
+| Capability | Description |
+|------------|-------------|
+| **Cross-App Access (XAA)** | Secure token exchange between services |
+| **Fine-Grained Authorization (FGA)** | Attribute-based access control |
+| **CIBA Step-Up Auth** | Human-in-the-loop for high-risk operations |
+| **Token Vault** | Secure credential management for external services |
 
 ---
 
 ## Architecture
 
-```
-Support Rep → Customer Service App → Atlas (AI Agent) → Okta → Internal MCP
-                                                              ├── CRM
-                                                              ├── Documents
-                                                              └── Payments
+```mermaid
+flowchart TB
+    U[👤 Support Rep] --> F[🎨 Apex Customer 360]
+    F --> A[⚙️ Atlas AI Agent]
+    A --> O[🔑 Okta Identity]
+    O --> M[🛠️ Internal MCP]
+    
+    subgraph MCP Tools
+        M --> CRM[CRM]
+        M --> DOCS[Documents]
+        M --> PAY[Payments]
+    end
 ```
 
 ---
@@ -48,12 +57,12 @@ Support Rep → Customer Service App → Atlas (AI Agent) → Okta → Internal 
 
 | Scenario | What Happens | Security |
 |----------|--------------|----------|
-| Help customer on a call | Full customer data returned | FGA: Allowed |
-| Process $5K refund | Approved with logging | Medium risk |
-| Process $15K refund | **Requires manager approval** | CIBA triggered |
-| Search documentation | Results filtered by access | FGA filtering |
-| Access Charlie's record | **Access denied** | Compliance hold |
-| View Bob's account | Full data returned | FGA: Allowed |
+| Help customer on a call | Full customer data returned | FGA: Allowed ✅ |
+| Process $5K refund | Approved with logging | Medium risk ⚠️ |
+| Process $15K refund | **Requires manager approval** | CIBA triggered 🔐 |
+| Search documentation | Results filtered by access | FGA filtering 📄 |
+| Access Charlie's record | **Access denied** | Compliance hold ❌ |
+| View Bob's account | Full data returned | FGA: Allowed ✅ |
 
 ---
 
@@ -83,6 +92,27 @@ cat DOCUMENTATION.md
 
 ---
 
+## Test the API
+
+```bash
+# Test customer lookup (allowed)
+curl -X POST https://okta-ai-agent-backend.onrender.com/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Get customer information for Alice"}'
+
+# Test restricted customer (denied)
+curl -X POST https://okta-ai-agent-backend.onrender.com/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Get customer information for Charlie"}'
+
+# Test high-value payment (CIBA required)
+curl -X POST https://okta-ai-agent-backend.onrender.com/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Initiate a payment of $15000 to Bob Smith"}'
+```
+
+---
+
 ## Documentation
 
 See [DOCUMENTATION.md](./DOCUMENTATION.md) for:
@@ -94,19 +124,35 @@ See [DOCUMENTATION.md](./DOCUMENTATION.md) for:
 
 ---
 
-## Demo By
+## Tech Stack
 
-**Kundan Kolhe** | Product Marketing, Okta
+| Layer | Technology |
+|-------|------------|
+| Frontend | Next.js 14, Tailwind CSS, Framer Motion |
+| Backend | FastAPI, Claude AI (Anthropic) |
+| MCP Server | FastAPI, Python |
+| Identity | Okta |
+| Hosting | Vercel (Frontend), Render (APIs) |
 
 ---
 
-## Tech Stack
+## Security Outcomes
 
-- **Frontend:** Next.js 14, Tailwind CSS, Framer Motion
-- **Backend:** FastAPI, Claude AI (Anthropic)
-- **MCP Server:** FastAPI, Python
-- **Identity:** Okta
-- **Hosting:** Vercel (Frontend), Render (APIs)
+```mermaid
+graph LR
+    subgraph "Okta for AI Agents"
+        XAA[Cross-App Access] --> TOKEN[Secure Token Exchange]
+        FGA[Fine-Grained Auth] --> POLICY[Attribute-Based Control]
+        CIBA[Step-Up Auth] --> HUMAN[Human Approval]
+        VAULT[Token Vault] --> CREDS[Credential Management]
+    end
+```
+
+---
+
+## Demo By
+
+**Kundan Kolhe** | Product Marketing, Okta
 
 ---
 
