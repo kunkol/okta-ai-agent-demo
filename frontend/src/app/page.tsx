@@ -540,28 +540,44 @@ export default function Home() {
           <div className="flex-1 flex flex-col border-r border-white/5 min-w-0">
             {/* Tabs */}
             <div className="border-b border-white/5 px-6">
-              <div className="flex gap-1">
-                {[
-                  { id: 'chat', label: 'Agent Console' },
-                  { id: 'audit', label: 'Audit Trail', count: auditLog.length },
-                ].map(tab => (
+              <div className="flex justify-between items-center">
+                <div className="flex gap-1">
+                  {[
+                    { id: 'chat', label: 'Agent Console' },
+                    { id: 'audit', label: 'Audit Trail', count: auditLog.length },
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id as 'chat' | 'audit')}
+                      className={`px-5 py-3.5 text-sm font-medium border-b-2 transition-all ${
+                        activeTab === tab.id
+                          ? 'border-[#00D4AA] text-white'
+                          : 'border-transparent text-gray-500 hover:text-gray-300'
+                      }`}
+                    >
+                      {tab.label}
+                      {tab.count !== undefined && tab.count > 0 && (
+                        <span className="ml-2 px-2 py-0.5 text-[10px] rounded-full bg-[#00D4AA]/10 text-[#00D4AA]">
+                          {tab.count}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                {messages.length > 0 && (
                   <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id as 'chat' | 'audit')}
-                    className={`px-5 py-3.5 text-sm font-medium border-b-2 transition-all ${
-                      activeTab === tab.id
-                        ? 'border-[#00D4AA] text-white'
-                        : 'border-transparent text-gray-500 hover:text-gray-300'
-                    }`}
+                    onClick={() => {
+                      setMessages([]);
+                      setSecuritySteps([]);
+                      setAuditLog([]);
+                      setActiveTab('chat');
+                      setMetrics({ requestsSecured: 0, tokensExchanged: 0, threatsBlocked: 0, cibaApprovals: 0 });
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-all"
                   >
-                    {tab.label}
-                    {tab.count !== undefined && tab.count > 0 && (
-                      <span className="ml-2 px-2 py-0.5 text-[10px] rounded-full bg-[#00D4AA]/10 text-[#00D4AA]">
-                        {tab.count}
-                      </span>
-                    )}
+                    New Session
                   </button>
-                ))}
+                )}
               </div>
             </div>
 
@@ -627,7 +643,7 @@ export default function Home() {
                               <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-[#007DC1] to-[#00D4AA] flex items-center justify-center">
                                 <IconCpu className="w-3.5 h-3.5 text-white" />
                               </div>
-                              <span className="text-xs text-gray-400 font-medium">AI Agent Response</span>
+                              <span className="text-xs text-gray-400 font-medium">Atlas</span>
                             </div>
                           )}
                           <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
@@ -803,9 +819,9 @@ export default function Home() {
                 
                 <ConnLine active={flowActive} direction="down" status={archState.app as any} />
                 
-                {/* AI Agent */}
+                {/* Atlas AI Agent */}
                 <div className="flex justify-center">
-                  <ArchNode label="AI Agent" sublabel="Claude" status={archState.agent as any} />
+                  <ArchNode label="Atlas" sublabel="AI Agent" status={archState.agent as any} />
                 </div>
                 
                 <ConnLine active={flowActive} direction="down" status={archState.agent as any} />
@@ -914,26 +930,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Footer Info */}
-            <div className="p-4 border-t border-white/5">
-              <div className="bg-[#12121a] rounded-xl p-4 border border-white/5">
-                <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-3">Environment</p>
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Tenant</span>
-                    <span className="text-gray-300 font-mono text-[11px]">qa-aiagentsproducttc1</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Agent</span>
-                    <span className="text-gray-300 font-mono text-[11px]">KK Demo Agent</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Auth Server</span>
-                    <span className="text-gray-300 font-mono text-[11px]">default</span>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </main>
