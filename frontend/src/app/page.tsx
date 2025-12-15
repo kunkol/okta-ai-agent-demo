@@ -129,11 +129,36 @@ const IconCloud = ({ className = "w-5 h-5" }: { className?: string }) => (
 
 // Demo scenarios
 const DEMO_SCENARIOS = [
-  { label: 'Customer Lookup - Authorized', query: 'Get customer information for Alice', risk: 'low' },
-  { label: 'Customer Lookup - Restricted', query: 'Get customer information for Charlie', risk: 'high' },
-  { label: 'Payment - Standard', query: 'Initiate a payment of $5000 to Vendor Corp', risk: 'medium' },
-  { label: 'Payment - High Value', query: 'Initiate a payment of $15000 to Acme Inc', risk: 'critical' },
-  { label: 'Document Search', query: 'Search for documents about security policies', risk: 'low' },
+  { 
+    label: 'Help customer on a call', 
+    description: 'Pull up account, contract, and payment history',
+    query: 'Look up Alice Johnson account details for the support call - show contract info, revenue, and payment history', 
+    risk: 'low' 
+  },
+  { 
+    label: 'Access flagged account', 
+    description: 'Customer under compliance hold',
+    query: 'Access Charlie account information - need to review their contract details', 
+    risk: 'high' 
+  },
+  { 
+    label: 'Process small refund', 
+    description: '$450 - auto-approved under $500 limit',
+    query: 'Issue a $450 refund to customer Alice Johnson for service dissatisfaction', 
+    risk: 'medium' 
+  },
+  { 
+    label: 'Process large refund', 
+    description: '$1,500 - requires manager approval',
+    query: 'Issue a $1,500 refund to customer for major service complaint - escalated case', 
+    risk: 'critical' 
+  },
+  { 
+    label: 'Answer product question', 
+    description: 'Search knowledge base for policies',
+    query: 'Search knowledge base for refund policy and return procedures', 
+    risk: 'low' 
+  },
 ];
 
 // Architecture Node Component
@@ -586,16 +611,15 @@ export default function Home() {
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-4">
                   {messages.length === 0 && (
-                    <div className="h-full flex flex-col items-center justify-center py-12">
-                      <div className="w-20 h-20 mb-6 rounded-2xl bg-gradient-to-br from-[#00297A]/20 via-[#007DC1]/20 to-[#00D4AA]/20 border border-white/5 flex items-center justify-center">
-                        <IconCpu className="w-10 h-10 text-[#00D4AA]/60" />
+                    <div className="flex flex-col items-center justify-center py-8">
+                      <div className="w-14 h-14 mb-4 rounded-xl bg-gradient-to-br from-[#00297A]/20 via-[#007DC1]/20 to-[#00D4AA]/20 border border-white/5 flex items-center justify-center">
+                        <IconCpu className="w-7 h-7 text-[#00D4AA]/60" />
                       </div>
-                      <h3 className="text-xl font-semibold text-white mb-2">
+                      <h3 className="text-lg font-semibold text-white mb-1">
                         AI-Powered Customer Intelligence
                       </h3>
-                      <p className="text-gray-500 text-sm max-w-md text-center mb-8">
-                        Execute security scenarios to observe Cross-App Access token exchange, 
-                        Fine-Grained Authorization, and CIBA step-up authentication.
+                      <p className="text-gray-500 text-sm max-w-md text-center mb-5">
+                        Select a customer service task to see Atlas assist your support team.
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-w-3xl">
                         {DEMO_SCENARIOS.map((scenario, index) => (
@@ -610,14 +634,7 @@ export default function Home() {
                             }`}
                           >
                             <p className="text-sm text-white font-medium mb-1">{scenario.label}</p>
-                            <p className={`text-[10px] uppercase tracking-wider ${
-                              scenario.risk === 'critical' ? 'text-red-400' :
-                              scenario.risk === 'high' ? 'text-amber-400' :
-                              scenario.risk === 'medium' ? 'text-blue-400' :
-                              'text-gray-500'
-                            }`}>
-                              {scenario.risk} risk
-                            </p>
+                            <p className="text-[11px] text-gray-400 mb-1">{scenario.description}</p>
                           </button>
                         ))}
                       </div>
@@ -807,7 +824,7 @@ export default function Home() {
               <div className="space-y-0">
                 {/* User */}
                 <div className="flex justify-center">
-                  <ArchNode label="User" sublabel="Employee" status={archState.user as any} />
+                  <ArchNode label="Support Rep" sublabel="Customer Service" status={archState.user as any} />
                 </div>
                 
                 <ConnLine active={flowActive} direction="down" status={archState.user as any} />
@@ -933,6 +950,26 @@ export default function Home() {
           </div>
         </div>
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-white/5 bg-[#0a0a0f]">
+        <div className="max-w-[1800px] mx-auto px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-6">
+              <div>
+                <p className="text-xs text-gray-400">
+                  Demo by <span className="text-white">Kundan Kolhe</span> | Product Marketing, Okta
+                </p>
+              </div>
+            </div>
+            <div className="text-right max-w-md">
+              <p className="text-[11px] text-gray-500">
+                Demonstrating Cross-App Access (XAA), Fine-Grained Authorization (FGA), and CIBA step-up authentication for AI Agent security.
+              </p>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
