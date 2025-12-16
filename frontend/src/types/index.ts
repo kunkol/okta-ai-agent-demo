@@ -22,7 +22,7 @@ export interface XAAStep {
   step: number;
   name: string;
   description: string;
-  status: 'pending' | 'active' | 'success' | 'error';
+  status: string;
   timestamp?: string;
   duration_ms?: number;
 }
@@ -37,7 +37,7 @@ export interface FGAResult {
 
 export interface CIBAStatus {
   triggered: boolean;
-  status: 'not_triggered' | 'pending' | 'approved' | 'denied' | 'timeout';
+  status: string;
   reason?: string;
   amount?: number;
 }
