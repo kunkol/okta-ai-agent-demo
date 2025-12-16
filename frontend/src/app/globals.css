@@ -1,124 +1,58 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --okta-navy: #00297A;
-  --okta-teal: #00D4AA;
-  --okta-blue: #007DC1;
-  --surface-base: #08080c;
-  --surface-elevated: #12121a;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-html {
-  scroll-behavior: smooth;
+  --foreground-rgb: 0, 0, 0;
+  --background-rgb: 249, 250, 251;
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: var(--surface-base);
-  color: #e8e8ed;
-  min-height: 100vh;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
 }
 
-/* Scrollbar */
+/* Scrollbar styling */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #f1f1f1;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
+  background: #c1c1c1;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: #a1a1a1;
 }
 
-/* Selection */
-::selection {
-  background: rgba(0, 212, 170, 0.3);
-  color: #fff;
-}
-
-/* Focus states */
+/* Focus styles */
 *:focus {
   outline: none;
 }
 
 *:focus-visible {
-  outline: 2px solid rgba(0, 212, 170, 0.5);
+  outline: 2px solid #3b82f6;
   outline-offset: 2px;
 }
 
-/* Disable default button styles */
-button {
-  font-family: inherit;
-}
-
-/* Input placeholder */
-input::placeholder {
-  color: #4a4a5a;
-}
-
-/* Smooth transitions */
-* {
-  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 150ms;
-}
-
-/* Animation utilities */
-@keyframes pulse-glow {
-  0%, 100% {
-    box-shadow: 0 0 20px rgba(0, 212, 170, 0.2);
+/* Animation for typing indicator */
+@keyframes bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
   }
-  50% {
-    box-shadow: 0 0 40px rgba(0, 212, 170, 0.4);
+  30% {
+    transform: translateY(-4px);
   }
 }
 
-@keyframes flow {
-  0% {
-    transform: translateY(-100%);
-    opacity: 0;
-  }
-  50% {
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(100%);
-    opacity: 0;
-  }
-}
-
-.animate-pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
-}
-
-.animate-flow {
-  animation: flow 1s ease-in-out infinite;
-}
-
-/* Text utilities */
-.text-balance {
-  text-wrap: balance;
-}
-
-/* Line clamp */
+/* Line clamp utility */
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -126,27 +60,9 @@ input::placeholder {
   overflow: hidden;
 }
 
-/* Tabular numbers for metrics */
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
-}
-
-/* Glass effect */
-.glass {
-  background: rgba(18, 18, 26, 0.8);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-/* Gradient text */
-.gradient-text {
-  background: linear-gradient(135deg, #00D4AA 0%, #007DC1 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* Monospace styling */
-.font-mono {
-  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+.line-clamp-4 {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }

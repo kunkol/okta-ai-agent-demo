@@ -1,5 +1,5 @@
 {
-  "name": "okta-ai-agent-frontend",
+  "name": "apex-customer-360-frontend",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -10,11 +10,9 @@
   },
   "dependencies": {
     "next": "14.2.21",
+    "next-auth": "^4.24.5",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "framer-motion": "^11.15.0",
-    "lucide-react": "^0.468.0",
-    "@okta/okta-auth-js": "^7.5.1"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@types/node": "^20",
