@@ -2,10 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useSession, signIn, signOut } from 'next-auth/react';
 
 // Types
-type ArchStatus = 'idle' | 'active' | 'success' | 'error';
 type FlowStepStatus = 'pending' | 'active' | 'complete';
 
 interface Message {
@@ -36,24 +34,11 @@ interface FlowStep {
   section: 'chat' | 'mcp';
 }
 
-interface SecurityEvent {
-  type: 'xaa' | 'fga' | 'ciba';
-  status: 'success' | 'error' | 'warning' | 'pending';
-  message: string;
-  detail?: string;
-}
-
-// Utility to decode JWT
-const decodeJWT = (token: string): Record<string, unknown> | null => {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const payload = parts[1];
-    const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
-    return JSON.parse(decoded);
-  } catch {
-    return null;
-  }
+// Demo user (simulated Okta session)
+const DEMO_USER = {
+  name: 'Kundan Kolhe',
+  email: 'kundan.kolhe@okta.com',
+  sub: '00u8w1k16aeagsq620g7',
 };
 
 // Demo scenarios - All tested against C1/C2 APIs
@@ -165,13 +150,11 @@ const PromptLibrary = ({ onSelect, onClose }: { onSelect: (query: string) => voi
 // Collapsible Section Component
 const CollapsibleSection = ({ 
   title, 
-  icon, 
   children, 
   defaultOpen = true,
   statusColor = 'emerald'
 }: { 
   title: string; 
-  icon?: React.ReactNode;
   children: React.ReactNode; 
   defaultOpen?: boolean;
   statusColor?: 'emerald' | 'blue' | 'amber' | 'red';
@@ -223,7 +206,7 @@ const CollapsibleSection = ({
 };
 
 // Copy Button Component
-const CopyButton = ({ text, label = 'Copy' }: { text: string; label?: string }) => {
+const CopyButton = ({ text }: { text: string }) => {
   const [copied, setCopied] = useState(false);
   
   const handleCopy = () => {
@@ -249,7 +232,7 @@ const CopyButton = ({ text, label = 'Copy' }: { text: string; label?: string }) 
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
           </svg>
-          <span>{label}</span>
+          <span>Copy</span>
         </>
       )}
     </button>
@@ -283,7 +266,6 @@ const FlowStepItem = ({ step, isLast }: { step: FlowStep; isLast: boolean }) => 
 };
 
 export default function Home() {
-  const { data: session, status } = useSession();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -291,11 +273,6 @@ export default function Home() {
   const [showPromptLibrary, setShowPromptLibrary] = useState(false);
   const [metrics, setMetrics] = useState({ requests: 0, tokens: 0, blocked: 0 });
   const [currentContext, setCurrentContext] = useState<SecurityContext | null>(null);
-  const [systemStatus, setSystemStatus] = useState({
-    aiAssistant: 'active' as 'active' | 'inactive',
-    authentication: 'secure' as 'secure' | 'insecure',
-    dataPrivacy: 'protected' as 'protected' | 'exposed',
-  });
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://okta-ai-agent-backend.onrender.com';
@@ -303,48 +280,6 @@ export default function Home() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  // Show loading while checking auth
-  if (status === 'loading') {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-          <span className="text-gray-600">Loading...</span>
-        </div>
-      </div>
-    );
-  }
-
-  // Show sign-in if not authenticated
-  if (!session) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#00297A] to-[#00D4AA] flex items-center justify-center mb-6">
-          <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-          </svg>
-        </div>
-        <h1 className="text-2xl font-semibold text-gray-900 mb-2">Apex Customer 360</h1>
-        <p className="text-gray-500 mb-8">AI Agent Security Demo</p>
-        <button
-          onClick={() => signIn('okta')}
-          className="px-8 py-3 bg-gradient-to-r from-emerald-500 to-blue-600 text-white font-medium rounded-xl hover:opacity-90 transition-opacity flex items-center gap-2"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-          </svg>
-          Sign in with Okta
-        </button>
-        <p className="text-xs text-gray-400 mt-8">
-          Secured by{' '}
-          <a href="https://www.okta.com/solutions/secure-ai/" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline">
-            Okta Secures AI
-          </a>
-        </p>
-      </div>
-    );
-  }
 
   const handleNewSession = () => {
     setMessages([]);
@@ -365,9 +300,8 @@ export default function Home() {
 
   const generateSecurityContext = (query: string, toolUsed: string): SecurityContext => {
     const timestamp = Date.now();
-    // Use actual ID token from session if available
-    const idToken = (session as any)?.idToken || `eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IktLRGVtb0FnZW50In0.eyJzdWIiOiIke3Nlc3Npb24/LnVzZXI/LmVtYWlsfSIsIm5hbWUiOiIke3Nlc3Npb24/LnVzZXI/Lm5hbWV9IiwiZW1haWwiOiIke3Nlc3Npb24/LnVzZXI/LmVtYWlsfSIsInZlciI6MSwiaXNzIjoiaHR0cHM6Ly9xYS1haWFnZW50c3Byb2R1Y3R0YzEudHJleGNsb3VkLmNvbSIsImF1ZCI6IjBvYTh4YXRkMTFQQmU2MjJGMGc3IiwiaWF0IjokeyR0aW1lc3RhbXB9LCJleHAiOiR7dGltZXN0YW1wICsgMzYwMDAwMH19.signature`;
-    const idJagToken = `eyJhbGciOiJSUzI1NiIsInR5cCI6ImlkLWphZytqd3QiLCJraWQiOiJPS1RBLUlELUpBRyJ9.eyJpc3MiOiJodHRwczovL3FhLWFpYWdlbnRzcHJvZHVjdHRjMS50cmV4Y2xvdWQuY29tIiwiYXVkIjoiYXBpOi8vYXBleC1jdXN0b21lcnMtbWNwIiwic3ViIjoiJHtzZXNzaW9uPy51c2VyPy5lbWFpbH0iLCJhZ2VudF9pZCI6ImtrLWRlbW8tYWdlbnQiLCJzY29wZSI6ImN1c3RvbWVyczpyZWFkIHBheW1lbnRzOndyaXRlIiwiYXpwIjoiYXRsYXMtYWktYWdlbnQiLCJpYXQiOiR7dGltZXN0YW1wfSwiZXhwIjoke3RpbWVzdGFtcCArIDMwMDAwMH19.id-jag-signature`;
+    const idToken = `eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IktLRGVtb0FnZW50In0.eyJzdWIiOiIwMHU4dzFrMTZhZWFnc3E2MjBnNyIsIm5hbWUiOiJLdW5kYW4gS29saGUiLCJlbWFpbCI6Imt1bmRhbi5rb2xoZUBva3RhLmNvbSIsInZlciI6MSwiaXNzIjoiaHR0cHM6Ly9xYS1haWFnZW50c3Byb2R1Y3R0YzEudHJleGNsb3VkLmNvbSIsImF1ZCI6IjBvYTh4YXRkMTFQQmU2MjJGMGc3IiwiaWF0IjoxNzM0MzU1MjAwLCJleHAiOjE3MzQzNTg4MDB9.mock-signature`;
+    const idJagToken = `eyJhbGciOiJSUzI1NiIsInR5cCI6ImlkLWphZytqd3QiLCJraWQiOiJPS1RBLUlELUpBRyJ9.eyJpc3MiOiJodHRwczovL3FhLWFpYWdlbnRzcHJvZHVjdHRjMS50cmV4Y2xvdWQuY29tIiwiYXVkIjoiYXBpOi8vYXBleC1jdXN0b21lcnMtbWNwIiwic3ViIjoiMDB1OHcxazE2YWVhZ3NxNjIwZzciLCJhZ2VudF9pZCI6ImtrLWRlbW8tYWdlbnQiLCJzY29wZSI6ImN1c3RvbWVyczpyZWFkIHBheW1lbnRzOndyaXRlIiwiYXpwIjoiYXRsYXMtYWktYWdlbnQiLCJpYXQiOjE3MzQzNTUyMDAsImV4cCI6MTczNDM1NTUwMH0.id-jag-signature`;
     const mcpToken = `mcp_${timestamp}_${toolUsed}_${Math.random().toString(36).substring(2, 10)}`;
 
     return {
@@ -453,12 +387,10 @@ export default function Home() {
 
   // Parse decoded token for display
   const getDecodedToken = () => {
-    if (!currentContext?.id_token) return null;
-    // Use actual session data
     return {
-      sub: session?.user?.email?.split('@')[0] || "user",
-      name: session?.user?.name || "User",
-      email: session?.user?.email || "user@example.com",
+      sub: DEMO_USER.sub,
+      name: DEMO_USER.name,
+      email: DEMO_USER.email,
       ver: 1,
       iss: "https://qa-aiagentsproducttc1.trexcloud.com",
       aud: "0oa8xatd11PBe622F0g7",
@@ -511,21 +443,15 @@ export default function Home() {
                 <span className="text-xs text-emerald-700 font-medium">All Systems Operational</span>
               </div>
 
-              {/* User Info & Sign Out */}
+              {/* User Info */}
               <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
-                <div className="text-right">
-                  <p className="text-sm font-medium text-gray-900">{session.user?.name}</p>
-                  <p className="text-xs text-gray-500">{session.user?.email}</p>
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#00297A] to-[#00D4AA] flex items-center justify-center text-white text-sm font-medium">
+                  {DEMO_USER.name.split(' ').map(n => n[0]).join('')}
                 </div>
-                <button
-                  onClick={() => signOut()}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                  title="Sign out"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                </button>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-gray-900">{DEMO_USER.name}</p>
+                  <p className="text-xs text-gray-500">{DEMO_USER.email}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -704,11 +630,11 @@ export default function Home() {
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-medium text-gray-600">Decoded Token</span>
-                      {currentContext && <CopyButton text={JSON.stringify(getDecodedToken(), null, 2)} />}
+                      <CopyButton text={JSON.stringify(getDecodedToken(), null, 2)} />
                     </div>
                     <div className="bg-gray-50 rounded-lg p-3 border border-gray-200 max-h-48 overflow-y-auto">
                       <pre className="text-xs text-gray-700 font-mono whitespace-pre-wrap">
-                        {currentContext ? JSON.stringify(getDecodedToken(), null, 2) : '{\n  "sub": "waiting...",\n  "name": "...",\n  "email": "..."\n}'}
+                        {JSON.stringify(getDecodedToken(), null, 2)}
                       </pre>
                     </div>
                   </div>
