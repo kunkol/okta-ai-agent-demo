@@ -88,13 +88,25 @@ const generateTokens = (user: User, query: string, tool: string): TokenData => {
   const encodeToken = (header: object, payload: object) => {
     const h = btoa(JSON.stringify(header)).replace(/=/g, '');
     const p = btoa(JSON.stringify(payload)).replace(/=/g, '');
-    return `${h}.${p}.${Math.random().toString(36).substring(2, 20)}`;
+    // Generate a realistic looking signature
+    const sigChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+    const sig = Array.from({length: 43}, () => sigChars[Math.floor(Math.random() * sigChars.length)]).join('');
+    return `${h}.${p}.${sig}`;
+  };
+
+  const mcpTokenPayload = {
+    sub: user.sub,
+    aud: "api://apex-customers-mcp",
+    scope: idJagDecoded.scope,
+    exp: now + 3600,
+    iat: now,
+    jti: `MCP.${Math.random().toString(36).substring(2, 15)}`,
   };
 
   return {
     id_token: { raw: encodeToken({ alg: 'RS256', typ: 'JWT' }, idTokenDecoded), decoded: idTokenDecoded },
     id_jag_token: { raw: encodeToken({ alg: 'RS256', typ: 'id-jag+jwt' }, idJagDecoded), decoded: idJagDecoded },
-    mcp_access_token: { raw: `eyJraWQ${Math.random().toString(36).substring(2, 8)}Vd2UTRBVHFZR2VyMFdmZHM5QzRCKm15Mks0SmVyYjU3QlczRWFnTHZFIiwiYWxnIjoi...`, scope: idJagDecoded.scope, expires_in: 3600 },
+    mcp_access_token: { raw: encodeToken({ alg: 'RS256', typ: 'at+jwt', kid: 'MCP-KEY-001' }, mcpTokenPayload), scope: idJagDecoded.scope, expires_in: 3600 },
   };
 };
 
