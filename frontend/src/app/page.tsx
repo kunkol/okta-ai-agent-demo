@@ -4,12 +4,23 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Types
+type ArchStatus = 'idle' | 'active' | 'success' | 'error';
+
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
-  securityEvents?: SecurityEvent[];
+  securityContext?: SecurityContext;
+}
+
+interface SecurityContext {
+  mcp_server?: string;
+  tools_called?: string[];
+  id_jag_token?: string;
+  mcp_access_token?: string;
+  scope?: string;
+  expires_in?: number;
 }
 
 interface SecurityEvent {
@@ -65,8 +76,68 @@ const DEMO_SCENARIOS = [
   },
 ];
 
+// Prompt Library Modal
+const PromptLibrary = ({ onSelect, onClose }: { onSelect: (query: string) => void; onClose: () => void }) => {
+  const categories = [
+    { name: 'MCP - Customers', prompts: DEMO_SCENARIOS.filter(s => s.category === 'MCP - Customers') },
+    { name: 'MCP - Payments', prompts: DEMO_SCENARIOS.filter(s => s.category === 'MCP - Payments') },
+    { name: 'RAG - Documents', prompts: DEMO_SCENARIOS.filter(s => s.category === 'RAG - Documents') },
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="bg-[#12121a] border border-white/10 rounded-2xl max-w-2xl w-full max-h-[70vh] overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+          <h2 className="text-lg font-semibold text-white">Prompt Library</h2>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors text-gray-400 hover:text-white">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="p-6 overflow-y-auto max-h-[calc(70vh-80px)]">
+          <p className="text-sm text-gray-400 mb-6">
+            Select a prompt to test XAA, FGA, and CIBA security scenarios.
+          </p>
+          <div className="space-y-6">
+            {categories.map((category) => (
+              <div key={category.name}>
+                <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">{category.name}</h3>
+                <div className="space-y-2">
+                  {category.prompts.map((prompt, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => { onSelect(prompt.query); onClose(); }}
+                      className="w-full text-left p-3 bg-white/5 hover:bg-white/10 rounded-lg transition-colors group"
+                    >
+                      <p className="text-sm text-white group-hover:text-[#00D4AA] transition-colors">{prompt.label}</p>
+                      <p className="text-xs text-gray-500 mt-1">{prompt.description}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
 // Architecture Node Component
-const ArchNode = ({ label, sublabel, status }: { label: string; sublabel: string; status: 'idle' | 'active' | 'success' | 'error' }) => {
+const ArchNode = ({ label, sublabel, status, tools }: { label: string; sublabel: string; status: ArchStatus; tools?: string[] }) => {
   const statusColors = {
     idle: 'border-gray-600 bg-[#1a1a24]',
     active: 'border-[#00D4AA] bg-[#00D4AA]/10 shadow-[0_0_20px_rgba(0,212,170,0.3)]',
@@ -75,17 +146,63 @@ const ArchNode = ({ label, sublabel, status }: { label: string; sublabel: string
   };
 
   return (
-    <div className={`px-4 py-2 rounded-lg border-2 transition-all duration-300 ${statusColors[status]}`}>
+    <div className={`px-4 py-3 rounded-xl border-2 transition-all duration-300 ${statusColors[status]}`}>
       <p className="text-sm font-medium text-white">{label}</p>
       <p className="text-[10px] text-gray-400">{sublabel}</p>
+      {tools && tools.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {tools.map((tool, i) => (
+            <span key={i} className="px-2 py-0.5 bg-white/10 rounded text-[9px] text-gray-300">{tool}</span>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
 
-// Connection Line
-const ConnLine = ({ active, direction = 'down' }: { active: boolean; direction?: 'down' | 'right' }) => {
+// Token Display Component
+const TokenDisplay = ({ label, token, expanded, onToggle }: { label: string; token?: string; expanded: boolean; onToggle: () => void }) => {
+  const [copied, setCopied] = useState(false);
+  
+  const copyToken = () => {
+    if (token) {
+      navigator.clipboard.writeText(token);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const truncate = (str: string, len: number) => str.length > len ? `${str.slice(0, len)}...` : str;
+
   return (
-    <div className={`${direction === 'down' ? 'h-6 w-0.5' : 'w-6 h-0.5'} mx-auto transition-colors duration-300 ${active ? 'bg-[#00D4AA]' : 'bg-gray-700'}`} />
+    <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-medium text-gray-400">{label}</span>
+        <div className="flex items-center gap-2">
+          {token && (
+            <button onClick={copyToken} className="p-1 hover:bg-white/10 rounded transition-colors">
+              {copied ? (
+                <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              )}
+            </button>
+          )}
+          <button onClick={onToggle} className="p-1 hover:bg-white/10 rounded transition-colors">
+            <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <p className="font-mono text-[10px] text-gray-300 break-all">
+        {token ? (expanded ? token : truncate(token, 50)) : 'Waiting for request...'}
+      </p>
+    </div>
   );
 };
 
@@ -94,16 +211,19 @@ export default function Home() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'console' | 'audit'>('console');
+  const [showPromptLibrary, setShowPromptLibrary] = useState(false);
   const [flowActive, setFlowActive] = useState(false);
-  const [archState, setArchState] = useState({
-    user: 'idle' as const,
-    app: 'idle' as const,
-    agent: 'idle' as const,
-    okta: 'idle' as const,
-    mcp: 'idle' as const,
+  const [archState, setArchState] = useState<Record<string, ArchStatus>>({
+    user: 'idle',
+    app: 'idle',
+    agent: 'idle',
+    okta: 'idle',
+    mcp: 'idle',
   });
   const [metrics, setMetrics] = useState({ requests: 0, tokens: 0, blocked: 0 });
   const [securityEvents, setSecurityEvents] = useState<SecurityEvent[]>([]);
+  const [currentContext, setCurrentContext] = useState<SecurityContext | null>(null);
+  const [expandedTokens, setExpandedTokens] = useState({ idJag: false, mcp: false });
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://okta-ai-agent-backend.onrender.com';
@@ -112,14 +232,20 @@ export default function Home() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const animateArchitecture = async () => {
+  const animateArchitecture = async (hasError = false) => {
     setFlowActive(true);
-    const steps: (keyof typeof archState)[] = ['user', 'app', 'agent', 'okta', 'mcp'];
+    const steps = ['user', 'app', 'agent', 'okta', 'mcp'];
     
-    for (const step of steps) {
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
       setArchState(prev => ({ ...prev, [step]: 'active' }));
-      await new Promise(r => setTimeout(r, 400));
-      setArchState(prev => ({ ...prev, [step]: 'success' }));
+      await new Promise(r => setTimeout(r, 300));
+      
+      if (hasError && step === 'mcp') {
+        setArchState(prev => ({ ...prev, [step]: 'error' }));
+      } else {
+        setArchState(prev => ({ ...prev, [step]: 'success' }));
+      }
     }
   };
 
@@ -132,6 +258,15 @@ export default function Home() {
       okta: 'idle',
       mcp: 'idle',
     });
+  };
+
+  const handleNewSession = () => {
+    setMessages([]);
+    setInput('');
+    setSecurityEvents([]);
+    setCurrentContext(null);
+    resetArchitecture();
+    setMetrics({ requests: 0, tokens: 0, blocked: 0 });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -157,10 +292,13 @@ export default function Home() {
     setIsLoading(true);
     setSecurityEvents([]);
     
-    // Start architecture animation
-    animateArchitecture();
+    // Check if this will be an error case
+    const willError = content.toLowerCase().includes('charlie');
 
     try {
+      // Start architecture animation
+      animateArchitecture(willError);
+
       const response = await fetch(`${BACKEND_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -168,6 +306,21 @@ export default function Home() {
       });
 
       const data = await response.json();
+      
+      // Generate simulated tokens (in real implementation, these come from backend)
+      const mockIdJag = `eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ikt1bmRhbktLRGVtb0FnZW50In0.eyJpc3MiOiJodHRwczovL3FhLWFpYWdlbnRzcHJvZHVjdHRjMS50cmV4Y2xvdWQuY29tIiwiYXVkIjoiYXBpOi8vYXBleC1jdXN0b21lcnMiLCJzdWIiOiIwMHU4dzFrMTZhZWFnc3E2MjBnNyJ9.signature`;
+      const mockMcpToken = `mcp_${Date.now()}_customers_read_${Math.random().toString(36).substring(7)}`;
+      
+      // Set security context
+      const secContext: SecurityContext = {
+        mcp_server: 'apex-customers-mcp',
+        tools_called: ['get_customer'],
+        id_jag_token: mockIdJag,
+        mcp_access_token: mockMcpToken,
+        scope: 'customers:read',
+        expires_in: 3600,
+      };
+      setCurrentContext(secContext);
       
       // Parse security events from response
       const events: SecurityEvent[] = [];
@@ -178,7 +331,7 @@ export default function Home() {
         type: 'xaa',
         status: 'success',
         message: 'Token Exchanged',
-        detail: 'ID-JAG → MCP Access Token'
+        detail: 'ID Token → ID-JAG → MCP Access Token'
       });
       setMetrics(prev => ({ ...prev, tokens: prev.tokens + 1 }));
 
@@ -188,17 +341,15 @@ export default function Home() {
           type: 'fga',
           status: 'error',
           message: 'Access Denied',
-          detail: 'Policy check failed'
+          detail: 'FGA policy check failed - compliance hold'
         });
         setMetrics(prev => ({ ...prev, blocked: prev.blocked + 1 }));
-        // Mark architecture as error
-        setArchState(prev => ({ ...prev, mcp: 'error' }));
       } else {
         events.push({
           type: 'fga',
           status: 'success',
           message: 'Authorized',
-          detail: 'Policy check passed'
+          detail: 'FGA policy check passed'
         });
       }
 
@@ -208,7 +359,7 @@ export default function Home() {
           type: 'ciba',
           status: 'warning',
           message: 'Step-Up Required',
-          detail: 'Manager approval pending'
+          detail: 'Manager approval pending via CIBA'
         });
       }
 
@@ -220,7 +371,7 @@ export default function Home() {
         role: 'assistant',
         content: data.response,
         timestamp: new Date(),
-        securityEvents: events,
+        securityContext: secContext,
       };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -236,14 +387,6 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleNewSession = () => {
-    setMessages([]);
-    setInput('');
-    setSecurityEvents([]);
-    resetArchitecture();
-    setMetrics({ requests: 0, tokens: 0, blocked: 0 });
   };
 
   return (
@@ -321,14 +464,25 @@ export default function Home() {
                     Audit Trail ({messages.filter(m => m.role === 'assistant').length})
                   </button>
                 </div>
-                {messages.length > 0 && (
+                <div className="flex items-center gap-2">
                   <button
-                    onClick={handleNewSession}
-                    className="px-3 py-1.5 text-xs text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                    onClick={() => setShowPromptLibrary(true)}
+                    className="px-3 py-1.5 text-xs text-[#00D4AA] hover:bg-[#00D4AA]/10 rounded-lg transition-colors flex items-center gap-1.5"
                   >
-                    New Session
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                    Prompts
                   </button>
-                )}
+                  {messages.length > 0 && (
+                    <button
+                      onClick={handleNewSession}
+                      className="px-3 py-1.5 text-xs text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                    >
+                      New Session
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -346,6 +500,18 @@ export default function Home() {
                   <p className="text-gray-400 text-sm mb-8 max-w-md text-center">
                     Your secure AI assistant for customer support. Select a scenario to see enterprise security in action.
                   </p>
+                  
+                  {/* Prompt Library Button */}
+                  <button
+                    onClick={() => setShowPromptLibrary(true)}
+                    className="mb-6 px-6 py-3 bg-[#00D4AA]/10 border border-[#00D4AA]/30 text-[#00D4AA] rounded-xl hover:bg-[#00D4AA]/20 transition-colors flex items-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                    Open Prompt Library
+                  </button>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-w-4xl">
                     {DEMO_SCENARIOS.map((scenario, idx) => (
                       <button
@@ -432,49 +598,69 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Right Panel - Security Architecture */}
-          <div className="w-[420px] flex flex-col overflow-hidden">
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Right Panel - Security Flow */}
+          <div className="w-[440px] flex flex-col overflow-hidden">
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
               
-              {/* Architecture Diagram */}
-              <div className="bg-[#12121a] rounded-xl border border-white/5 p-6">
-                <h3 className="text-sm font-medium text-white mb-6">Security Architecture</h3>
+              {/* Security Flow Diagram */}
+              <div className="bg-[#12121a] rounded-xl border border-white/5 p-5">
+                <h3 className="text-sm font-medium text-white mb-5">Security Flow</h3>
                 
-                <div className="flex flex-col items-center space-y-0">
+                <div className="flex flex-col items-center space-y-2">
                   {/* Support Rep */}
-                  <ArchNode label="Support Rep" sublabel="Customer Service" status={archState.user} />
-                  <ConnLine active={flowActive} direction="down" />
+                  <ArchNode label="Support Rep" sublabel="Customer Service" status={archState.user as ArchStatus} />
+                  <div className={`h-6 w-0.5 transition-colors ${flowActive ? 'bg-[#00D4AA]' : 'bg-gray-700'}`} />
                   
                   {/* Customer Service App */}
-                  <ArchNode label="Customer Service App" sublabel="Next.js" status={archState.app} />
-                  <ConnLine active={flowActive} direction="down" />
+                  <ArchNode label="Apex Customer 360" sublabel="Next.js Frontend" status={archState.app as ArchStatus} />
+                  <div className={`h-6 w-0.5 transition-colors ${flowActive ? 'bg-[#00D4AA]' : 'bg-gray-700'}`} />
                   
                   {/* Atlas AI Agent */}
-                  <ArchNode label="Atlas" sublabel="AI Agent" status={archState.agent} />
-                  <ConnLine active={flowActive} direction="down" />
+                  <ArchNode label="Atlas" sublabel="AI Agent (Claude)" status={archState.agent as ArchStatus} />
+                  <div className={`h-6 w-0.5 transition-colors ${flowActive ? 'bg-[#00D4AA]' : 'bg-gray-700'}`} />
                   
                   {/* Okta */}
-                  <ArchNode label="Okta" sublabel="Identity / XAA" status={archState.okta} />
-                  <ConnLine active={flowActive} direction="down" />
+                  <ArchNode label="Okta" sublabel="Identity / XAA / FGA" status={archState.okta as ArchStatus} />
+                  <div className={`h-6 w-0.5 transition-colors ${flowActive ? 'bg-[#00D4AA]' : 'bg-gray-700'}`} />
                   
-                  {/* MCP Servers */}
-                  <div className="flex gap-4">
-                    <div className="flex flex-col items-center">
-                      <ArchNode label="Internal MCP" sublabel="Enterprise Tools" status={archState.mcp} />
-                      <div className="mt-2 flex gap-2">
-                        <span className="px-2 py-1 bg-white/5 rounded text-[9px] text-gray-400">CRM</span>
-                        <span className="px-2 py-1 bg-white/5 rounded text-[9px] text-gray-400">Docs</span>
-                        <span className="px-2 py-1 bg-white/5 rounded text-[9px] text-gray-400">Payments</span>
-                      </div>
+                  {/* MCP Server */}
+                  <ArchNode 
+                    label="Internal MCP Server" 
+                    sublabel="apex-customers-mcp" 
+                    status={archState.mcp as ArchStatus}
+                    tools={['get_customer', 'search_documents', 'initiate_payment']}
+                  />
+                </div>
+              </div>
+
+              {/* Token Details */}
+              <div className="bg-[#12121a] rounded-xl border border-white/5 p-4">
+                <h3 className="text-sm font-medium text-white mb-4">Token Exchange</h3>
+                <div className="space-y-3">
+                  <TokenDisplay 
+                    label="ID-JAG Token" 
+                    token={currentContext?.id_jag_token} 
+                    expanded={expandedTokens.idJag}
+                    onToggle={() => setExpandedTokens(prev => ({ ...prev, idJag: !prev.idJag }))}
+                  />
+                  <TokenDisplay 
+                    label="MCP Access Token" 
+                    token={currentContext?.mcp_access_token} 
+                    expanded={expandedTokens.mcp}
+                    onToggle={() => setExpandedTokens(prev => ({ ...prev, mcp: !prev.mcp }))}
+                  />
+                  {currentContext?.scope && (
+                    <div className="flex items-center justify-between text-xs px-3 py-2 bg-white/5 rounded-lg">
+                      <span className="text-gray-400">Scope</span>
+                      <span className="text-[#00D4AA] font-mono">{currentContext.scope}</span>
                     </div>
-                    <div className="flex flex-col items-center opacity-40">
-                      <ArchNode label="External SaaS" sublabel="Coming Soon" status="idle" />
-                      <div className="mt-2 flex gap-2">
-                        <span className="px-2 py-1 bg-white/5 rounded text-[9px] text-gray-500">GitHub</span>
-                        <span className="px-2 py-1 bg-white/5 rounded text-[9px] text-gray-500">Slack</span>
-                      </div>
+                  )}
+                  {currentContext?.expires_in && (
+                    <div className="flex items-center justify-between text-xs px-3 py-2 bg-white/5 rounded-lg">
+                      <span className="text-gray-400">Expires In</span>
+                      <span className="text-gray-300">{currentContext.expires_in}s</span>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
 
@@ -537,14 +723,39 @@ export default function Home() {
                 Demo by <span className="text-white">Kundan Kolhe</span> | Product Marketing, Okta
               </p>
             </div>
-            <div className="text-right">
-              <p className="text-[11px] text-gray-500">
-                Cross-App Access (XAA) | Fine-Grained Authorization (FGA) | CIBA Step-Up Auth
-              </p>
+            <div className="flex items-center gap-4 text-xs">
+              <span className="text-gray-500">Secured by</span>
+              <a 
+                href="https://www.okta.com/solutions/secure-ai/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-[#00D4AA] hover:underline"
+              >
+                Okta Secures AI
+              </a>
+              <span className="text-gray-600">|</span>
+              <a 
+                href="https://auth0.com/ai" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-orange-400 hover:underline"
+              >
+                Auth0 for AI
+              </a>
             </div>
           </div>
         </div>
       </footer>
+
+      {/* Prompt Library Modal */}
+      <AnimatePresence>
+        {showPromptLibrary && (
+          <PromptLibrary 
+            onSelect={handleScenarioClick} 
+            onClose={() => setShowPromptLibrary(false)} 
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
