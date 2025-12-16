@@ -77,7 +77,8 @@ class OktaCrossAppAccessManager:
             self._sdk_available = True
             logger.info("Okta XAA SDK initialized successfully")
             
-        except ImportError:
+        except ImportError as ie:
+            logger.warning(f"Import error details: {ie}")
             logger.warning("okta-ai-sdk-proto not installed - using simulation mode")
         except Exception as e:
             logger.error(f"Failed to initialize XAA SDK: {e}")
