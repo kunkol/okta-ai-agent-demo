@@ -6,17 +6,7 @@ module.exports = {
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
-    extend: {
-      colors: {
-        'okta-blue': '#00297A',
-        'okta-teal': '#00D4AA',
-        'okta-purple': '#6366f1',
-      },
-      animation: {
-        'pulse-glow': 'pulse-glow 2s infinite',
-        'fade-in-up': 'fade-in-up 0.3s ease-out forwards',
-      },
-    },
+    extend: {},
   },
   plugins: [],
 };
