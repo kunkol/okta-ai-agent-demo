@@ -1,52 +1,51 @@
 # Apex Customer 360 - Frontend
 
-AI-powered customer support platform with enterprise security.
+AI-powered customer support platform with enterprise Okta security.
 
 ## Features
 
 - **Okta SSO Authentication** via NextAuth.js
-- **Chat Interface** with Atlas AI assistant
-- **Security Panel** showing:
-  - ID Token Details (decoded + raw)
-  - MCP Flow with ID-JAG Secure Flow visualization
-  - System Status indicators
-- **Prompt Library** with demo prompts for XAA, FGA, and CIBA scenarios
+- **Real-time XAA Flow** visualization with animated steps
+- **Security Panels** showing ID tokens, MCP flow, and FGA results
+- **Audit Trail** logging all security decisions
+- **Prompt Library** with XAA, FGA, and CIBA demo scenarios
+- **Dark Executive Theme** with Okta brand colors
 
-## Tech Stack
-
-- Next.js 14 (App Router)
-- TypeScript
-- Tailwind CSS
-- NextAuth.js with Okta Provider
-
-## Setup
+## Quick Start
 
 ### 1. Install Dependencies
 
 ```bash
-cd frontend
 npm install
 ```
 
-### 2. Configure Environment Variables
+### 2. Configure Environment
 
-Copy `.env.example` to `.env.local` and fill in your values:
+Copy `.env.example` to `.env.local`:
 
 ```bash
 cp .env.example .env.local
 ```
 
-Required variables:
-- `NEXT_PUBLIC_OKTA_DOMAIN` - Your Okta domain
-- `NEXT_PUBLIC_OKTA_CLIENT_ID` - Okta app client ID
-- `OKTA_CLIENT_SECRET` - Okta app client secret
-- `NEXT_PUBLIC_BACKEND_URL` - Backend API URL
-- `NEXTAUTH_SECRET` - Random secret for NextAuth (generate with `openssl rand -base64 32`)
-- `NEXTAUTH_URL` - Your app URL (http://localhost:3000 for dev)
+Fill in your values:
+
+```env
+# Okta (from C0 config)
+OKTA_CLIENT_ID=0oa8xatd11PBe622F0g7
+OKTA_CLIENT_SECRET=your_secret_here
+OKTA_ISSUER=https://qa-aiagentsproducttc1.trexcloud.com/oauth2/default
+
+# NextAuth
+NEXTAUTH_SECRET=your_secret_here  # Generate: openssl rand -base64 32
+NEXTAUTH_URL=http://localhost:3000
+
+# Backend
+NEXT_PUBLIC_BACKEND_URL=https://okta-ai-agent-backend.onrender.com
+```
 
 ### 3. Configure Okta Redirect URIs
 
-In Okta Admin Console, add these redirect URIs:
+In Okta Admin Console, add:
 
 **Development:**
 - `http://localhost:3000/api/auth/callback/okta`
@@ -64,8 +63,8 @@ Open [http://localhost:3000](http://localhost:3000)
 
 ## Deployment to Vercel
 
-1. Push code to GitHub
-2. Import project in Vercel
+1. Push to GitHub
+2. Import in Vercel
 3. Add environment variables in Vercel dashboard
 4. Update `NEXTAUTH_URL` to your Vercel URL
 5. Add production redirect URI to Okta
@@ -77,15 +76,10 @@ frontend/
 ├── src/
 │   ├── app/
 │   │   ├── api/auth/[...nextauth]/route.ts  # NextAuth API
-│   │   ├── globals.css                       # Global styles
+│   │   ├── globals.css                       # Dark theme styles
 │   │   ├── layout.tsx                        # Root layout
-│   │   └── page.tsx                          # Main page (login + chat)
+│   │   └── page.tsx                          # Main app (login + chat)
 │   ├── components/
-│   │   ├── Header.tsx                        # App header
-│   │   ├── MessageBubble.tsx                 # Chat message component
-│   │   ├── IDTokenDetails.tsx                # Token display panel
-│   │   ├── MCPFlow.tsx                       # MCP + ID-JAG flow panel
-│   │   ├── SystemStatus.tsx                  # Status indicators
 │   │   ├── PromptLibrary.tsx                 # Demo prompts modal
 │   │   └── SessionProvider.tsx               # NextAuth provider
 │   ├── lib/
@@ -93,30 +87,24 @@ frontend/
 │   │   └── auth.ts                           # NextAuth config
 │   └── types/
 │       ├── index.ts                          # App types
-│       └── next-auth.d.ts                    # NextAuth type extensions
-├── .env.example                              # Environment template
+│       └── next-auth.d.ts                    # NextAuth extensions
+├── .env.example
 ├── package.json
 ├── tailwind.config.js
 └── tsconfig.json
 ```
 
-## UI Design
+## Security Features
 
-The UI follows Indranil's Streamward AI Assistant design:
-- White/light background
-- Clean, minimal, professional styling
-- Two-column layout (chat left, security panel right)
-- Green status indicators
-- Collapsible panels with copy buttons
-- ID-JAG Secure Flow with numbered steps (1-4)
+| Feature | Description |
+|---------|-------------|
+| **XAA** | Cross-App Access with ID-JAG token exchange |
+| **FGA** | Fine-Grained Authorization checks |
+| **CIBA** | Step-up auth for high-value transactions |
 
-## Backend Integration
+## Demo Scenarios
 
-The frontend calls these backend endpoints:
-- `POST /api/chat` - Send chat message
-- `GET /api/chat/xaa/status` - Check XAA mode
-- `GET /health` - Health check
-
-Headers sent:
-- `Authorization: Bearer {accessToken}` - For authentication
-- `X-ID-Token: {idToken}` - For XAA token exchange
+1. **Alice/Bob Lookup** - Full XAA flow with token exchange
+2. **Charlie Lookup** - FGA blocks unauthorized access
+3. **$5K Payment** - Normal payment processing
+4. **$15K Payment** - CIBA step-up authentication triggered

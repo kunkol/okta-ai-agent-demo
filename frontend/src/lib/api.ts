@@ -1,71 +1,99 @@
-// lib/api.ts
-
-import { ChatResponse } from '@/types';
-
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://okta-ai-agent-backend.onrender.com';
+
+export interface ChatRequest {
+  message: string;
+  user_id?: string;
+}
+
+export interface ChatResponse {
+  response: string;
+  security_context?: {
+    mcp_server?: string;
+    tools_called?: string[];
+    id_jag_token?: string;
+    mcp_access_token?: string;
+    expires_in?: number;
+    scope?: string;
+    xaa_steps?: Array<{
+      step: number;
+      name: string;
+      description: string;
+      status: string;
+      timestamp?: string;
+      duration_ms?: number;
+    }>;
+    fga_result?: {
+      allowed: boolean;
+      user: string;
+      relation: string;
+      object: string;
+      reason?: string;
+    };
+    ciba_status?: {
+      triggered: boolean;
+      status: string;
+      reason?: string;
+      amount?: number;
+    };
+  };
+}
+
+export interface HealthResponse {
+  status: string;
+  service: string;
+  timestamp: string;
+}
 
 export async function sendChatMessage(
   message: string,
-  accessToken?: string,
-  idToken?: string
+  idToken?: string,
+  userId?: string
 ): Promise<ChatResponse> {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
   };
 
-  if (accessToken) {
-    headers['Authorization'] = `Bearer ${accessToken}`;
-  }
-
   if (idToken) {
+    headers['Authorization'] = `Bearer ${idToken}`;
     headers['X-ID-Token'] = idToken;
   }
 
   const response = await fetch(`${BACKEND_URL}/api/chat`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({
+      message,
+      user_id: userId,
+    }),
   });
 
   if (!response.ok) {
-    throw new Error(`API error: ${response.status}`);
+    throw new Error(`Backend error: ${response.status}`);
   }
 
-  const data = await response.json();
-  return {
-    response: data.response,
-    mcp_info: data.mcp_info,
-    security_flow: data.security_flow,
-  };
-}
-
-export async function checkXAAStatus(): Promise<{ mode: string }> {
-  const response = await fetch(`${BACKEND_URL}/api/chat/xaa/status`);
-  if (!response.ok) {
-    return { mode: 'unknown' };
-  }
   return response.json();
 }
 
-export async function checkHealth(): Promise<{ status: string }> {
-  try {
-    const response = await fetch(`${BACKEND_URL}/health`);
-    if (!response.ok) {
-      return { status: 'unhealthy' };
-    }
-    return response.json();
-  } catch {
-    return { status: 'offline' };
+export async function checkBackendHealth(): Promise<HealthResponse> {
+  const response = await fetch(`${BACKEND_URL}/health`, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Health check failed: ${response.status}`);
   }
+
+  return response.json();
 }
 
-export function decodeJWT(token: string): Record<string, unknown> | null {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const payload = JSON.parse(atob(parts[1]));
-    return payload;
-  } catch {
-    return null;
+export async function getXAAStatus(): Promise<{ enabled: boolean; mode: string }> {
+  const response = await fetch(`${BACKEND_URL}/api/chat/xaa/status`, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    return { enabled: false, mode: 'simulated' };
   }
+
+  return response.json();
 }

@@ -1,9 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
-  env: {
-    NEXT_PUBLIC_BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL || 'https://okta-ai-agent-backend.onrender.com',
-  },
-}
+  reactStrictMode: true,
+  swcMinify: true,
+};
 
-module.exports = nextConfig
+module.exports = nextConfig;

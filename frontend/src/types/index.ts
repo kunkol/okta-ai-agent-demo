@@ -1,78 +1,64 @@
-// types/index.ts
-
 export interface Message {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: Date;
-  mcpInfo?: MCPInfo;
-  securityFlow?: SecurityFlow;
+  securityContext?: SecurityContext;
 }
 
-export interface MCPInfo {
-  server: string;
-  tools_called: string[];
+export interface SecurityContext {
+  mcp_server?: string;
+  tools_called?: string[];
   id_jag_token?: string;
   mcp_access_token?: string;
   expires_in?: number;
   scope?: string;
-  query?: string;
+  xaa_steps?: XAAStep[];
+  fga_result?: FGAResult;
+  ciba_status?: CIBAStatus;
 }
 
-export interface SecurityFlow {
-  xaa?: {
-    status: 'success' | 'error' | 'pending';
-    steps: SecurityStep[];
-  };
-  fga?: {
-    status: 'success' | 'error' | 'not_checked';
-    checks: FGACheck[];
-  };
-  ciba?: {
-    status: 'not_triggered' | 'pending' | 'approved' | 'denied' | 'timeout';
-    reason?: string;
-  };
-}
-
-export interface SecurityStep {
+export interface XAAStep {
   step: number;
   name: string;
   description: string;
-  status: 'success' | 'error' | 'pending' | 'active';
+  status: 'pending' | 'active' | 'success' | 'error';
   timestamp?: string;
+  duration_ms?: number;
 }
 
-export interface FGACheck {
-  query: string;
+export interface FGAResult {
   allowed: boolean;
+  user: string;
+  relation: string;
+  object: string;
   reason?: string;
+}
+
+export interface CIBAStatus {
+  triggered: boolean;
+  status: 'not_triggered' | 'pending' | 'approved' | 'denied' | 'timeout';
+  reason?: string;
+  amount?: number;
+}
+
+export interface AuditEntry {
+  id: string;
+  timestamp: Date;
+  action: string;
+  user: string;
+  resource: string;
+  result: 'allowed' | 'denied' | 'pending';
+  details?: string;
 }
 
 export interface DecodedToken {
   sub?: string;
-  name?: string;
   email?: string;
-  ver?: number;
-  iss?: string;
-  aud?: string;
-  iat?: number;
+  name?: string;
   exp?: number;
+  iat?: number;
+  iss?: string;
+  aud?: string | string[];
   [key: string]: unknown;
-}
-
-export interface PromptItem {
-  title: string;
-  prompt: string;
-  description: string;
-}
-
-export interface PromptCategory {
-  category: string;
-  prompts: PromptItem[];
-}
-
-export interface ChatResponse {
-  response: string;
-  mcp_info?: MCPInfo;
-  security_flow?: SecurityFlow;
 }

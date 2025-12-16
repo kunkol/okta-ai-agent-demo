@@ -1,141 +1,128 @@
-// components/PromptLibrary.tsx
 'use client';
 
-import { PromptCategory } from '@/types';
+import { X, Users, CreditCard, FileText, Shield, AlertTriangle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface PromptLibraryProps {
-  isOpen: boolean;
+  onSelect: (prompt: string) => void;
   onClose: () => void;
-  onSelectPrompt: (prompt: string) => void;
 }
 
-const promptLibrary: PromptCategory[] = [
+const PROMPT_CATEGORIES = [
   {
-    category: 'XAA Demos',
+    name: 'XAA - Customer Queries',
+    icon: Users,
+    color: 'text-okta-teal',
+    bgColor: 'bg-okta-teal/10',
     prompts: [
-      {
-        title: 'Customer Lookup',
-        prompt: 'Look up customer Sarah Chen and show me her account details',
-        description: 'Demonstrates XAA token exchange to access MCP tools',
-      },
-      {
-        title: 'Recent Orders',
-        prompt: 'What are the recent orders for customer ID 12345?',
-        description: 'Shows cross-app access to order management system',
-      },
-      {
-        title: 'Customer Support History',
-        prompt: 'Show me the support ticket history for Acme Corp',
-        description: 'Retrieves support data via secure token exchange',
-      },
+      { label: 'Alice Lookup', text: 'Get customer information for Alice' },
+      { label: 'Bob Lookup', text: 'Get customer information for Bob' },
+      { label: 'List All Customers', text: 'Show me all customers in the system' },
+      { label: 'Customer Orders', text: 'What orders has Alice placed recently?' },
     ],
   },
   {
-    category: 'FGA Demos',
+    name: 'FGA - Access Control',
+    icon: Shield,
+    color: 'text-okta-purple',
+    bgColor: 'bg-okta-purple/10',
     prompts: [
-      {
-        title: 'View Allowed Data',
-        prompt: 'Show me customer details for accounts I manage',
-        description: 'FGA allows access - user has permission',
-      },
-      {
-        title: 'Access Denied Demo',
-        prompt: 'Show me all customer credit card numbers',
-        description: 'FGA denies access - sensitive data protection',
-      },
-      {
-        title: 'Role-Based Access',
-        prompt: 'Show me the financial summary for all enterprise customers',
-        description: 'FGA checks user role before granting access',
-      },
+      { label: 'Charlie Lookup (Denied)', text: 'Get customer information for Charlie' },
+      { label: 'Check My Permissions', text: 'What resources can I access?' },
+      { label: 'View Restricted Data', text: 'Show me confidential customer records' },
     ],
   },
   {
-    category: 'CIBA Demos',
+    name: 'CIBA - Step-Up Auth',
+    icon: AlertTriangle,
+    color: 'text-warning',
+    bgColor: 'bg-warning/10',
     prompts: [
-      {
-        title: 'Step-Up Auth Required',
-        prompt: 'Update the billing address for customer Sarah Chen',
-        description: 'Triggers CIBA step-up authentication',
-      },
-      {
-        title: 'High-Value Transaction',
-        prompt: 'Process a refund of $5000 for order #789',
-        description: 'CIBA approval required for high-value actions',
-      },
-      {
-        title: 'Sensitive Data Modification',
-        prompt: 'Change the primary contact email for Acme Corp to new@acme.com',
-        description: 'CIBA verifies user identity before critical changes',
-      },
+      { label: 'Small Payment ($5K)', text: 'Process a payment of $5,000 for Alice' },
+      { label: 'Large Payment ($15K)', text: 'Process a payment of $15,000 for Bob' },
+      { label: 'High-Risk Transaction', text: 'Transfer $50,000 to external account' },
+    ],
+  },
+  {
+    name: 'Documents & Policies',
+    icon: FileText,
+    color: 'text-success',
+    bgColor: 'bg-success/10',
+    prompts: [
+      { label: 'Refund Policy', text: 'What is the refund policy?' },
+      { label: 'Privacy Policy', text: 'Show me the privacy policy' },
+      { label: 'Search Documents', text: 'Find documents about data retention' },
     ],
   },
 ];
 
-export default function PromptLibrary({ isOpen, onClose, onSelectPrompt }: PromptLibraryProps) {
-  if (!isOpen) return null;
-
-  const handleSelectPrompt = (prompt: string) => {
-    onSelectPrompt(prompt);
-    onClose();
-  };
-
+export default function PromptLibrary({ onSelect, onClose }: PromptLibraryProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50"
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6"
         onClick={onClose}
-      ></div>
-
-      {/* Modal */}
-      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Prompt Library</h2>
-          <button
-            onClick={onClose}
-            className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[calc(80vh-80px)]">
-          <div className="space-y-6">
-            {promptLibrary.map((category) => (
-              <div key={category.category}>
-                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                  {category.category}
-                </h3>
-                <div className="space-y-2">
-                  {category.prompts.map((item) => (
-                    <button
-                      key={item.title}
-                      onClick={() => handleSelectPrompt(item.prompt)}
-                      className="w-full text-left p-4 bg-gray-50 hover:bg-blue-50 rounded-lg border border-gray-200 hover:border-blue-300 transition-colors group"
-                    >
-                      <div className="flex items-start gap-3">
-                        <span className="text-xl">📋</span>
-                        <div className="flex-1">
-                          <p className="font-medium text-gray-900 group-hover:text-blue-700">
-                            {item.title}
-                          </p>
-                          <p className="text-sm text-gray-600 mt-1">{item.prompt}</p>
-                          <p className="text-xs text-gray-400 mt-2">{item.description}</p>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          className="bg-[#12121a] border border-white/10 rounded-2xl max-w-3xl w-full max-h-[80vh] overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+            <h2 className="text-lg font-semibold text-white">Demo Prompt Library</h2>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5 text-gray-400" />
+            </button>
           </div>
-        </div>
-      </div>
-    </div>
+
+          {/* Content */}
+          <div className="p-6 overflow-y-auto max-h-[calc(80vh-80px)]">
+            <p className="text-sm text-gray-400 mb-6">
+              Select a prompt to test different security scenarios: Cross-App Access (XAA), 
+              Fine-Grained Authorization (FGA), and CIBA step-up authentication.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {PROMPT_CATEGORIES.map((category) => (
+                <div key={category.name} className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className={`p-2 rounded-lg ${category.bgColor}`}>
+                      <category.icon className={`w-4 h-4 ${category.color}`} />
+                    </div>
+                    <h3 className="text-sm font-medium text-white">{category.name}</h3>
+                  </div>
+
+                  <div className="space-y-2">
+                    {category.prompts.map((prompt) => (
+                      <button
+                        key={prompt.label}
+                        onClick={() => onSelect(prompt.text)}
+                        className="w-full text-left p-3 bg-white/5 hover:bg-white/10 rounded-lg transition-colors group"
+                      >
+                        <p className="text-sm text-white group-hover:text-okta-teal transition-colors">
+                          {prompt.label}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1 truncate">
+                          &quot;{prompt.text}&quot;
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   );
 }

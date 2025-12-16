@@ -1,5 +1,3 @@
-// lib/auth.ts
-
 import { NextAuthOptions } from 'next-auth';
 import OktaProvider from 'next-auth/providers/okta';
 
@@ -8,7 +6,7 @@ export const authOptions: NextAuthOptions = {
     OktaProvider({
       clientId: process.env.OKTA_CLIENT_ID!,
       clientSecret: process.env.OKTA_CLIENT_SECRET!,
-      issuer: `https://${process.env.NEXT_PUBLIC_OKTA_DOMAIN}`,
+      issuer: process.env.OKTA_ISSUER!,
     }),
   ],
   callbacks: {
@@ -22,10 +20,16 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       session.accessToken = token.accessToken as string;
       session.idToken = token.idToken as string;
+      if (token.sub) {
+        session.user.id = token.sub;
+      }
       return session;
     },
   },
   pages: {
     signIn: '/',
+  },
+  session: {
+    strategy: 'jwt',
   },
 };

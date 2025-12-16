@@ -8,17 +8,15 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        'okta': {
-          'navy': '#00297A',
-          'teal': '#00D4AA',
-          'blue': '#007DC1',
-        },
+        'okta-blue': '#00297A',
+        'okta-teal': '#00D4AA',
+        'okta-purple': '#6366f1',
       },
-      fontFamily: {
-        'sans': ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
-        'mono': ['JetBrains Mono', 'Fira Code', 'Consolas', 'monospace'],
+      animation: {
+        'pulse-glow': 'pulse-glow 2s infinite',
+        'fade-in-up': 'fade-in-up 0.3s ease-out forwards',
       },
     },
   },
   plugins: [],
-}
+};
