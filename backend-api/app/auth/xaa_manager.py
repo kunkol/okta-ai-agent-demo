@@ -45,7 +45,7 @@ class OktaCrossAppAccessManager:
     def __init__(self):
         self.okta_domain = os.getenv("OKTA_DOMAIN", "qa-aiagentsproducttc1.trexcloud.com")
         self.agent_id = os.getenv("OKTA_CHAT_ASSISTANT_AGENT_ID")
-        self.agent_private_key = os.getenv("OKTA_CHAT_ASSISTANT_AGENT_PRIVATE_KEY")
+        self.agent_private_key = os.getenv("OKTA_AGENT_PRIVATE_KEY")
         self.mcp_auth_server_id = os.getenv("OKTA_EMPLOYEE_MCP_AUTHORIZATION_SERVER_ID", "default")
         self.agent_audience = os.getenv("OKTA_CHAT_ASSISTANT_AGENT_AUDIENCE")
         
@@ -57,7 +57,7 @@ class OktaCrossAppAccessManager:
     def _initialize_sdk(self):
         """Initialize the Okta AI SDK if available."""
         try:
-            from okta_ai import OktaCrossAppAccess
+            from okta_ai_sdk_proto import OktaCrossAppAccess
             
             if not self.agent_id or not self.agent_private_key:
                 logger.warning("XAA credentials not configured - using simulation mode")
