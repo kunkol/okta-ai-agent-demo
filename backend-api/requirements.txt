@@ -26,3 +26,11 @@ python-dotenv==1.0.1
 # Development
 pytest==8.3.4
 pytest-asyncio==0.25.2
+
+# Okta AI SDK (XAA)
+--extra-index-url https://test.pypi.org/simple/
+okta-ai-sdk-proto
+
+# Okta AI SDK (XAA)
+--extra-index-url https://test.pypi.org/simple/
+okta-ai-sdk-proto

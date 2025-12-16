@@ -86,6 +86,7 @@ class ChatResponse(BaseModel):
     tool_calls: List[ToolCall] = Field(default_factory=list)
     security_flow: SecurityFlow = Field(default_factory=SecurityFlow)
     audit_id: str = Field(..., description="Audit log entry ID")
+    mcp_info: Optional[Dict[str, Any]] = Field(default=None, description="MCP token info from XAA exchange")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     
     class Config:
