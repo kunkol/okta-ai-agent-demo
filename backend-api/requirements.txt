@@ -34,3 +34,4 @@ okta-ai-sdk-proto
 # Okta AI SDK (XAA)
 --extra-index-url https://test.pypi.org/simple/
 okta-ai-sdk-proto
+PyJWT>=2.8.0
