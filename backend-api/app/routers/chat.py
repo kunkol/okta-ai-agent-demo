@@ -4,7 +4,7 @@ Chat endpoints with Claude AI integration.
 This is the main endpoint that:
 1. Receives user messages
 2. Extracts ID token from X-ID-Token header
-3. Performs XAA token exchange (ID token -> ID-JAG -> Auth Server token)
+3. Performs XAA token exchange (ID token -> ID-JAG -> MCP token)
 4. Sends to Claude AI
 5. Claude decides which MCP tools to call
 6. Executes tools via MCP Server with exchanged token
@@ -15,6 +15,8 @@ from fastapi import APIRouter, HTTPException, Depends, Header
 from typing import Optional
 import uuid
 import logging
+import base64
+import json
 
 from app.models.schemas import (
     ChatRequest, ChatResponse, SecurityFlow,
@@ -34,6 +36,28 @@ logger = logging.getLogger(__name__)
 
 # In-memory conversation storage (use Redis/DB in production)
 conversations = {}
+
+
+def decode_jwt_claims(token: str) -> dict:
+    """Decode JWT claims without verification (for debugging)."""
+    try:
+        # Split the JWT
+        parts = token.split('.')
+        if len(parts) != 3:
+            return {"error": "Invalid JWT format"}
+        
+        # Decode the payload (middle part)
+        payload = parts[1]
+        # Add padding if needed
+        padding = 4 - len(payload) % 4
+        if padding != 4:
+            payload += '=' * padding
+        
+        decoded = base64.urlsafe_b64decode(payload)
+        claims = json.loads(decoded)
+        return claims
+    except Exception as e:
+        return {"error": f"Failed to decode: {str(e)}"}
 
 
 def extract_token(authorization: Optional[str]) -> Optional[str]:
@@ -56,12 +80,21 @@ async def chat(
     Flow:
     1. Receive user message
     2. Extract ID token from X-ID-Token header
-    3. Perform XAA exchange: ID token -> ID-JAG -> Auth Server token
+    3. Perform XAA exchange: ID token -> ID-JAG -> MCP access token
     4. Get conversation history
     5. Send to Claude with available MCP tools
     6. Claude decides which tools to call
     7. Execute tools via MCP Server with exchanged token
     8. Return response with security flow and mcp_info
+    
+    Args:
+        request: Chat request with message
+        user: Optional authenticated user
+        authorization: Authorization header with Bearer token
+        x_id_token: ID token for XAA exchange
+        
+    Returns:
+        ChatResponse with AI response, tool calls, security data, and mcp_info
     """
     # Generate or use existing conversation ID
     conversation_id = request.conversation_id or f"conv-{uuid.uuid4().hex[:8]}"
@@ -73,43 +106,47 @@ async def chat(
     access_token = extract_token(authorization)
     id_token = x_id_token or access_token  # Fall back to access token if no ID token
     
-    # Log token presence for debugging
-    logger.info(f"Token check - X-ID-Token present: {bool(x_id_token)}, Authorization present: {bool(authorization)}")
+    # Log token presence
+    logger.info(f"Token check - X-ID-Token present: {x_id_token is not None}, Authorization present: {authorization is not None}")
+    
+    # DEBUG: Decode and log ID token claims
+    if id_token:
+        claims = decode_jwt_claims(id_token)
+        logger.info(f"=== ID TOKEN DEBUG ===")
+        logger.info(f"  iss (issuer): {claims.get('iss')}")
+        logger.info(f"  aud (audience): {claims.get('aud')}")
+        logger.info(f"  sub (subject): {claims.get('sub')}")
+        logger.info(f"  cid (client_id): {claims.get('cid')}")
+        logger.info(f"  Full claims: {json.dumps(claims, indent=2)}")
+        logger.info(f"=== END ID TOKEN DEBUG ===")
+    
+    # Log XAA manager status
     logger.info(f"XAA Manager status: {xaa_manager.get_status()}")
     
     # Perform XAA token exchange
     mcp_info = None
     mcp_access_token = None
     xaa_performed = False
-    xaa_error = None
     
     if id_token:
         logger.info("ID token found, attempting XAA exchange...")
         try:
-            # Use the new method name from updated xaa_manager
-            xaa_result = await xaa_manager.exchange_for_mcp_token(
+            mcp_token_info = await xaa_manager.exchange_id_to_mcp_token(
                 id_token=id_token,
-                scope="mcp:read"
+                mcp_resource="mcp-server"
             )
-            if xaa_result:
-                mcp_info = xaa_result.to_dict()
-                mcp_access_token = xaa_result.auth_server_token  # Use auth_server_token from new XAATokenInfo
+            if mcp_token_info:
+                mcp_info = mcp_token_info.to_dict()
+                mcp_access_token = mcp_token_info.mcp_access_token
                 xaa_performed = True
-                logger.info(f"XAA exchange successful!")
-                logger.info(f"  ID-JAG duration: {xaa_result.id_jag_duration_ms}ms")
-                logger.info(f"  Auth Server duration: {xaa_result.auth_server_duration_ms}ms")
-                logger.info(f"  Audience: {xaa_result.audience}")
-            else:
-                logger.warning("XAA exchange returned None - check xaa_manager logs")
-                xaa_error = "XAA exchange returned None"
+                logger.info(f"XAA exchange successful - mode: {xaa_manager.get_status()['mode']}")
         except Exception as e:
-            logger.error(f"XAA exchange failed with exception: {e}")
-            import traceback
-            traceback.print_exc()
-            xaa_error = str(e)
+            logger.error(f"XAA exchange failed: {e}")
     else:
-        logger.warning("No ID token provided - XAA exchange skipped")
-        xaa_error = "No ID token provided"
+        logger.warning("No ID token provided")
+    
+    if not xaa_performed:
+        logger.warning("XAA exchange returned None - check xaa_manager logs")
     
     # Build user context
     user_context = None
@@ -120,7 +157,7 @@ async def chat(
             "name": user.name,
             "groups": user.groups
         }
-        logger.info(f"User context: {user.email}")
+        logger.info(f"User context: {user_context}")
     else:
         logger.info("No user context available")
     
@@ -133,9 +170,7 @@ async def chat(
         message=f"Chat request: {request.message[:100]}...",
         security_context={
             "xaa_performed": xaa_performed,
-            "xaa_mode": xaa_manager.get_status()["mode"],
-            "xaa_error": xaa_error,
-            "id_token_present": bool(id_token)
+            "xaa_mode": xaa_manager.get_status()["mode"]
         }
     )
     
@@ -153,8 +188,8 @@ async def chat(
         security_flow.token_exchanged = xaa_performed
         
         if xaa_performed:
-            security_flow.target_audience = mcp_info.get("audience", "api://default") if mcp_info else "api://default"
-            logger.info(f"XAA token will be used for MCP calls (audience: {security_flow.target_audience})")
+            security_flow.target_audience = "mcp-server"
+            logger.info("XAA token included in MCP calls")
         
         # Process tool calls and build security flow
         tool_calls = result.get("tool_calls", [])
@@ -212,8 +247,6 @@ async def chat(
         
     except Exception as e:
         logger.error(f"Chat error: {e}")
-        import traceback
-        traceback.print_exc()
         
         # Log the error
         audit_service.log(
@@ -307,13 +340,13 @@ async def call_tool_directly(
     
     if id_token:
         try:
-            xaa_result = await xaa_manager.exchange_for_mcp_token(
+            mcp_token_info = await xaa_manager.exchange_id_to_mcp_token(
                 id_token=id_token,
-                scope="mcp:read"
+                mcp_resource="mcp-server"
             )
-            if xaa_result:
-                mcp_access_token = xaa_result.auth_server_token
-                mcp_info = xaa_result.to_dict()
+            if mcp_token_info:
+                mcp_access_token = mcp_token_info.mcp_access_token
+                mcp_info = mcp_token_info.to_dict()
         except Exception as e:
             logger.error(f"XAA exchange failed: {e}")
     
