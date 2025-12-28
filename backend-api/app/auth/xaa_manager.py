@@ -60,11 +60,8 @@ class OktaCrossAppAccessManager:
         # Okta domain
         self.okta_domain = os.getenv("OKTA_DOMAIN", "").replace("https://", "").rstrip("/")
         
-        # Agent credentials - for Step 1 (ID-JAG) we use client_id + client_secret
+        # Agent credentials
         self.agent_id = os.getenv("OKTA_AGENT_ID")
-        self.client_secret = os.getenv("OKTA_CLIENT_SECRET")
-        
-        # Private key for Step 2 (JWT Bearer to auth server)
         self.agent_private_key_json = os.getenv("OKTA_AGENT_PRIVATE_KEY")
         
         # Authorization servers
@@ -91,25 +88,23 @@ class OktaCrossAppAccessManager:
             if not self.agent_id:
                 logger.warning("OKTA_AGENT_ID not configured")
                 return
-            
-            # Check for client secret (required for ID-JAG exchange)
-            if not self.client_secret:
-                logger.warning("OKTA_CLIENT_SECRET not configured - needed for ID-JAG exchange")
+                
+            if not self.agent_private_key_json:
+                logger.warning("OKTA_AGENT_PRIVATE_KEY not configured")
                 return
             
-            # Parse JWK if available (for Step 2)
-            if self.agent_private_key_json:
-                jwk = json.loads(self.agent_private_key_json)
-                self._kid = jwk.get("kid")
-                self._private_key = self._jwk_to_pem(jwk)
+            # Parse JWK
+            jwk = json.loads(self.agent_private_key_json)
+            self._kid = jwk.get("kid")
             
+            # Convert JWK to PEM for signing
+            self._private_key = self._jwk_to_pem(jwk)
             self._initialized = True
             
             logger.info(f"XAA Manager initialized successfully")
             logger.info(f"  Okta Domain: {self.okta_domain}")
-            logger.info(f"  Agent ID (Client ID): {self.agent_id}")
-            logger.info(f"  Client Secret: {'configured' if self.client_secret else 'missing'}")
-            logger.info(f"  Private Key ID: {self._kid}")
+            logger.info(f"  Agent ID: {self.agent_id}")
+            logger.info(f"  Key ID: {self._kid}")
             logger.info(f"  Default Auth Server: {self.default_auth_server_id}")
             logger.info(f"  Google Auth Server: {self.google_auth_server_id}")
             
@@ -196,11 +191,14 @@ class OktaCrossAppAccessManager:
         if not self.google_auth_server_id:
             logger.error("OKTA_GOOGLE_AUTH_SERVER_ID not configured")
             return None
+        
+        # For Step 1, audience = issuer URL of target auth server
+        target_issuer = f"https://{self.okta_domain}/oauth2/{self.google_auth_server_id}"
             
         return await self._perform_full_xaa_exchange(
             id_token=id_token,
             auth_server_id=self.google_auth_server_id,
-            audience=self.google_audience,
+            audience=target_issuer,
             scope=scope
         )
     
@@ -211,11 +209,16 @@ class OktaCrossAppAccessManager:
     ) -> Optional[XAATokenInfo]:
         """
         Exchange ID token for default MCP auth server token.
+        
+        For Step 1 (ID-JAG), the audience is the auth server's ISSUER URL.
         """
+        # For Step 1, audience = issuer URL of target auth server
+        target_issuer = f"https://{self.okta_domain}/oauth2/{self.default_auth_server_id}"
+        
         return await self._perform_full_xaa_exchange(
             id_token=id_token,
             auth_server_id=self.default_auth_server_id,
-            audience=self.default_audience,
+            audience=target_issuer,
             scope=scope
         )
     
@@ -296,19 +299,22 @@ class OktaCrossAppAccessManager:
         """
         Step 1: Exchange ID token for ID-JAG token using RFC 8693 Token Exchange.
         
-        Uses ORG-LEVEL endpoint (not custom auth server):
+        Uses ORG-LEVEL endpoint:
         POST /oauth2/v1/token
         
-        Based on Indranil's atko-cross-app-access-sdk:
-        - grant_type=urn:ietf:params:oauth:grant-type:token-exchange
-        - requested_token_type=urn:ietf:params:oauth:token-type:id-jag
-        - subject_token={id_token}
-        - subject_token_type=urn:ietf:params:oauth:token-type:id_token
-        - audience={resource}
-        - client_id + client_secret (NOT client_assertion)
+        grant_type=urn:ietf:params:oauth:grant-type:token-exchange
+        requested_token_type=urn:ietf:params:oauth:token-type:id-jag
+        subject_token={id_token}
+        subject_token_type=urn:ietf:params:oauth:token-type:id_token
+        audience={target_auth_server_issuer}
+        client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer
+        client_assertion={signed_jwt}
         """
-        # Use ORG-LEVEL token endpoint (not custom auth server)
+        # Use ORG-LEVEL token endpoint
         token_url = f"https://{self.okta_domain}/oauth2/v1/token"
+        
+        # Create client assertion (private key JWT)
+        client_assertion = self._create_client_assertion(token_url)
         
         data = {
             "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
@@ -316,13 +322,13 @@ class OktaCrossAppAccessManager:
             "subject_token": id_token,
             "subject_token_type": "urn:ietf:params:oauth:token-type:id_token",
             "audience": audience,
-            "client_id": self.agent_id,
-            "client_secret": self.client_secret
+            "client_assertion_type": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+            "client_assertion": client_assertion
         }
         
         logger.info(f"ID-JAG exchange request to: {token_url}")
         logger.info(f"  audience: {audience}")
-        logger.info(f"  client_id: {self.agent_id}")
+        logger.info(f"  client_id (in assertion): {self.agent_id}")
         
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -358,25 +364,15 @@ class OktaCrossAppAccessManager:
         """
         token_url = f"https://{self.okta_domain}/oauth2/{auth_server_id}/v1/token"
         
-        # For Step 2, we can use either client_assertion (private key) or client_secret
-        if self._private_key:
-            client_assertion = self._create_client_assertion(token_url)
-            data = {
-                "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
-                "assertion": id_jag_token,
-                "scope": scope,
-                "client_assertion_type": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
-                "client_assertion": client_assertion
-            }
-        else:
-            # Fallback to client_secret
-            data = {
-                "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
-                "assertion": id_jag_token,
-                "scope": scope,
-                "client_id": self.agent_id,
-                "client_secret": self.client_secret
-            }
+        # Use private key JWT for authentication
+        client_assertion = self._create_client_assertion(token_url)
+        data = {
+            "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+            "assertion": id_jag_token,
+            "scope": scope,
+            "client_assertion_type": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+            "client_assertion": client_assertion
+        }
         
         logger.info(f"JWT Bearer exchange request to: {token_url}")
         logger.info(f"  scope: {scope}")
@@ -403,7 +399,6 @@ class OktaCrossAppAccessManager:
             "mode": "real" if self.is_available else "not_configured",
             "okta_domain": self.okta_domain,
             "agent_id": self.agent_id,
-            "client_secret": "configured" if self.client_secret else "missing",
             "kid": self._kid,
             "default_auth_server": self.default_auth_server_id,
             "google_auth_server": self.google_auth_server_id,
