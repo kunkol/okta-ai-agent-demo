@@ -1,36 +1,18 @@
 import NextAuth from "next-auth";
+import OktaProvider from "next-auth/providers/okta";
 
-// NextAuth configuration for Okta SSO with XAA support
-
-const OKTA_DOMAIN = process.env.OKTA_DOMAIN!;
-const OKTA_CLIENT_ID = process.env.OKTA_CLIENT_ID!;
-const OKTA_CLIENT_SECRET = process.env.OKTA_CLIENT_SECRET!;
-
-const authOptions = {
+const handler = NextAuth({
   providers: [
-    {
-      id: "okta",
-      name: "Okta",
-      type: "oauth" as const,
-      clientId: OKTA_CLIENT_ID,
-      clientSecret: OKTA_CLIENT_SECRET,
-      // CRITICAL: Use ORG authorization server (not custom) for XAA compatibility
-      // XAA token exchange requires ID tokens issued by the ORG auth server
-      // Issuer will be: https://{domain} (NOT https://{domain}/oauth2/{customAuthServer})
-      wellKnown: `https://${OKTA_DOMAIN}/.well-known/openid-configuration`,
-      authorization: { params: { scope: "openid profile email" } },
-      checks: ["pkce", "state"] as ("pkce" | "state")[],
-      profile(profile: any) {
-        return {
-          id: profile.sub,
-          name: profile.name,
-          email: profile.email,
-        };
-      },
-    },
+    OktaProvider({
+      clientId: process.env.OKTA_CLIENT_ID!,
+      clientSecret: process.env.OKTA_CLIENT_SECRET!,
+      // CRITICAL: Use ORG authorization server issuer for XAA compatibility
+      // This ensures ID tokens have issuer = https://{domain} (not /oauth2/{custom})
+      issuer: `https://${process.env.OKTA_DOMAIN}`,
+    }),
   ],
   callbacks: {
-    async jwt({ token, account }: { token: any; account: any }) {
+    async jwt({ token, account }) {
       // Persist the ID token from the initial sign in
       if (account) {
         token.idToken = account.id_token;
@@ -46,8 +28,6 @@ const authOptions = {
     },
   },
   debug: process.env.NODE_ENV === "development",
-};
-
-const handler = NextAuth(authOptions);
+});
 
 export { handler as GET, handler as POST };
