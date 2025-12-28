@@ -189,11 +189,12 @@ class OktaCrossAppAccessManager:
         logger.info(f"  audience: {id_jag_audience}")
         
         try:
-            # Use the SDK's exchange_id_token method (from Indranil's notebook)
-            id_jag_response = self._xaa_client.exchange_id_token(
-                id_token=id_token,
+            # Use the SDK's exchange_token method
+            id_jag_response = self._xaa_client.exchange_token(
+                token=id_token,
                 audience=id_jag_audience,
-                scope="openid profile email"
+                scope="openid profile email",
+                token_type="id_token"
             )
             
             id_jag_token = id_jag_response.access_token
