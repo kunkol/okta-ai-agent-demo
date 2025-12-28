@@ -116,6 +116,7 @@ class OktaCrossAppAccessManager:
                 logger.info(f"  okta_domain: {self.okta_domain}")
                 logger.info(f"  client_id (OKTA_AGENT_ID): {self.client_id}")
                 logger.info(f"  auth_server (OKTA_AUTH_SERVER_ID): {self.default_auth_server}")
+                logger.info(f"  default_audience: {self.default_audience}")
                 logger.info(f"  kid: {self._kid}")
                 
             except ImportError as e:
@@ -168,8 +169,9 @@ class OktaCrossAppAccessManager:
         from okta_ai_sdk.types import AuthServerTokenRequest
         
         # Step 1: Exchange ID Token for ID-JAG Token
-        # Audience format: {OKTA_DOMAIN}/oauth2/{AUTH_SERVER_ID}
-        id_jag_audience = f"https://{self.okta_domain}/oauth2/{self.default_auth_server}"
+        # Try using the auth server's configured audience (api://default)
+        # instead of the issuer URL
+        id_jag_audience = self.default_audience  # api://default
         
         logger.info(f"Step 1: Exchanging ID Token for ID-JAG via SDK")
         logger.info(f"  audience: {id_jag_audience}")
@@ -189,8 +191,26 @@ class OktaCrossAppAccessManager:
             logger.info(f"  expires_in: {id_jag_response.expires_in}")
             
         except Exception as e:
-            logger.error(f"Step 1 FAILED: {e}")
-            raise
+            logger.error(f"Step 1 FAILED with audience {id_jag_audience}: {e}")
+            
+            # Retry with issuer URL format
+            id_jag_audience_v2 = f"https://{self.okta_domain}/oauth2/{self.default_auth_server}"
+            logger.info(f"  Retrying with audience: {id_jag_audience_v2}")
+            
+            try:
+                id_jag_response = self._xaa_client.exchange_token(
+                    token=id_token,
+                    audience=id_jag_audience_v2,
+                    scope="openid profile email",
+                    token_type="id_token"
+                )
+                
+                id_jag_token = id_jag_response.access_token
+                logger.info(f"Step 1 SUCCESS (retry): Got ID-JAG token")
+                
+            except Exception as e2:
+                logger.error(f"Step 1 FAILED (retry): {e2}")
+                raise e  # Raise original error
         
         # Step 2: Exchange ID-JAG for Auth Server Access Token
         logger.info(f"Step 2: Exchanging ID-JAG for Auth Server Token")
