@@ -1,53 +1,47 @@
 import NextAuth from "next-auth";
-import type { NextAuthOptions } from "next-auth";
 
-const authOptions: NextAuthOptions = {
+const OKTA_DOMAIN = process.env.OKTA_DOMAIN!;
+const OKTA_CLIENT_ID = process.env.OKTA_CLIENT_ID!;
+const OKTA_CLIENT_SECRET = process.env.OKTA_CLIENT_SECRET!;
+
+const authOptions = {
   providers: [
     {
       id: "okta",
       name: "Okta",
-      type: "oauth",
-      wellKnown: `https://${process.env.OKTA_DOMAIN}/oauth2/ApexCustomMCP/.well-known/openid-configuration`,
-      clientId: process.env.OKTA_CLIENT_ID,
-      clientSecret: process.env.OKTA_CLIENT_SECRET,
-      authorization: { 
-        params: { 
-          scope: "openid profile email",
-          response_type: "code"
-        } 
-      },
-      idToken: true,
+      type: "oidc" as const,
+      clientId: OKTA_CLIENT_ID,
+      clientSecret: OKTA_CLIENT_SECRET,
+      // CRITICAL: Use ORG authorization server (not custom) for XAA compatibility
+      // XAA token exchange requires ID tokens issued by the ORG auth server
+      // Issuer will be: https://{domain} (NOT https://{domain}/oauth2/{customAuthServer})
+      wellKnown: `https://${OKTA_DOMAIN}/.well-known/openid-configuration`,
+      authorization: { params: { scope: "openid profile email" } },
       checks: ["pkce", "state"],
       profile(profile) {
         return {
           id: profile.sub,
           name: profile.name,
           email: profile.email,
-          image: profile.picture,
         };
       },
     },
   ],
   callbacks: {
-    async jwt({ token, account, profile }) {
+    async jwt({ token, account }: { token: any; account: any }) {
+      // Persist the ID token from the initial sign in
       if (account) {
         token.idToken = account.id_token;
         token.accessToken = account.access_token;
-        token.sub = profile?.sub;
       }
       return token;
     },
-    async session({ session, token }) {
-      session.idToken = token.idToken as string;
-      session.accessToken = token.accessToken as string;
-      if (session.user) {
-        session.user.id = token.sub as string;
-      }
+    async session({ session, token }: { session: any; token: any }) {
+      // Make ID token available to the client for XAA
+      session.idToken = token.idToken;
+      session.accessToken = token.accessToken;
       return session;
     },
-  },
-  pages: {
-    signIn: "/",
   },
   debug: process.env.NODE_ENV === "development",
 };
