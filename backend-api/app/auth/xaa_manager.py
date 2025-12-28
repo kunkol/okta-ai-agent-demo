@@ -13,8 +13,7 @@ from dataclasses import dataclass
 
 from okta_ai_sdk import (
     OktaAIConfig,
-    CrossAppAccessClient,
-    IdJagTokenRequest,
+    OktaAISDK,
     AuthServerTokenRequest
 )
 
@@ -74,6 +73,7 @@ class OktaCrossAppAccessManager:
         self.google_audience = os.getenv("OKTA_GOOGLE_AUDIENCE", "https://google.com")
         
         self._sdk_config = None
+        self._sdk = None
         self._xaa_client = None
         self._initialized = False
         self._kid = None
@@ -103,23 +103,26 @@ class OktaCrossAppAccessManager:
                 except Exception as e:
                     logger.warning(f"Could not parse private key: {e}")
             
-            # Initialize SDK config
+            # Initialize SDK config - oktaDomain must be full URL with https://
+            okta_url = f"https://{self.okta_domain}" if not self.okta_domain.startswith("https://") else self.okta_domain
+            
             self._sdk_config = OktaAIConfig(
-                oktaDomain=self.okta_domain,
+                oktaDomain=okta_url,
                 clientId=self.client_id,
                 clientSecret=self.client_secret,
                 authorizationServerId=self.default_auth_server_id,
-                principalId=self.client_id,  # Use client_id as principal
+                principalId=self.client_id,
                 privateJWK=self._private_jwk
             )
             
-            # Initialize CrossAppAccess client
-            self._xaa_client = CrossAppAccessClient(self._sdk_config)
+            # Initialize SDK and get cross_app_access client
+            self._sdk = OktaAISDK(self._sdk_config)
+            self._xaa_client = self._sdk.cross_app_access
             
             self._initialized = True
             
             logger.info(f"XAA Manager initialized with okta-ai-sdk-proto")
-            logger.info(f"  Okta Domain: {self.okta_domain}")
+            logger.info(f"  Okta URL: {okta_url}")
             logger.info(f"  Client ID: {self.client_id}")
             logger.info(f"  Client Secret: configured")
             logger.info(f"  Key ID: {self._kid}")
@@ -195,16 +198,13 @@ class OktaCrossAppAccessManager:
             logger.info(f"  audience: {audience}")
             start_time = time.time()
             
-            id_jag_request = IdJagTokenRequest(
-                subject_token=id_token,
-                subject_token_type="urn:ietf:params:oauth:token-type:id_token",
+            # SDK signature: exchange_token(token, audience, scope, token_type)
+            id_jag_response = self._xaa_client.exchange_token(
+                token=id_token,
                 audience=audience,
-                client_id=self.client_id,
-                client_secret=self.client_secret,
-                scope=scope
+                scope=scope,
+                token_type="id_token"
             )
-            
-            id_jag_response = self._xaa_client.exchange_token(id_jag_request)
             
             id_jag_duration = int((time.time() - start_time) * 1000)
             
