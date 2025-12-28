@@ -49,21 +49,21 @@ class OktaCrossAppAccessManager:
         # Okta domain (without https://)
         self.okta_domain = os.getenv("OKTA_DOMAIN", "").replace("https://", "").replace("http://", "")
         
-        # Agent/Workload Principal credentials
-        self.client_id = os.getenv("OKTA_CHAT_ASSISTANT_AGENT_ID")  # This is the workload principal ID
-        self.client_secret = os.getenv("OKTA_CHAT_ASSISTANT_AGENT_CLIENT_SECRET")
+        # Agent/Workload Principal credentials - using YOUR env var names
+        self.client_id = os.getenv("OKTA_AGENT_ID")  # wlp8x98zcxMOXEPHJ0g7
+        self.client_secret = os.getenv("OKTA_CLIENT_SECRET")
         
         # Private JWK for JWT bearer assertion
         self.private_jwk_json = os.getenv("OKTA_AGENT_PRIVATE_KEY")
         self._private_jwk = None
         self._kid = None
         
-        # Authorization servers
-        self.default_auth_server = os.getenv("OKTA_EMPLOYEE_MCP_AUTHORIZATION_SERVER_ID", "default")
-        self.google_auth_server = os.getenv("OKTA_GOOGLE_AUTHORIZATION_SERVER_ID")
+        # Authorization servers - using YOUR env var names
+        self.default_auth_server = os.getenv("OKTA_AUTH_SERVER_ID", "default")  # ApexCustomMCP
+        self.google_auth_server = os.getenv("OKTA_GOOGLE_AUTH_SERVER_ID")
         
-        # Audiences
-        self.default_audience = os.getenv("OKTA_CHAT_ASSISTANT_AGENT_AUDIENCE", "api://default")
+        # Audiences - using YOUR env var names
+        self.default_audience = os.getenv("OKTA_DEFAULT_AUDIENCE", "api://default")
         self.google_audience = os.getenv("OKTA_GOOGLE_AUDIENCE", "https://google.com")
         
         # SDK components
@@ -83,11 +83,11 @@ class OktaCrossAppAccessManager:
             
             # Check required credentials
             if not self.client_id:
-                logger.warning("OKTA_CHAT_ASSISTANT_AGENT_ID not configured")
+                logger.warning("OKTA_AGENT_ID not configured")
                 return
             
             if not self._private_jwk:
-                logger.warning("OKTA_AGENT_PRIVATE_KEY not configured")
+                logger.warning("OKTA_AGENT_PRIVATE_KEY not configured or invalid JSON")
                 return
             
             if not self.okta_domain:
@@ -114,8 +114,8 @@ class OktaCrossAppAccessManager:
                 
                 logger.info(f"XAA Manager initialized with SDK")
                 logger.info(f"  okta_domain: {self.okta_domain}")
-                logger.info(f"  client_id: {self.client_id}")
-                logger.info(f"  auth_server: {self.default_auth_server}")
+                logger.info(f"  client_id (OKTA_AGENT_ID): {self.client_id}")
+                logger.info(f"  auth_server (OKTA_AUTH_SERVER_ID): {self.default_auth_server}")
                 logger.info(f"  kid: {self._kid}")
                 
             except ImportError as e:
@@ -176,7 +176,6 @@ class OktaCrossAppAccessManager:
         
         try:
             # Use the SDK's exchange_token method
-            # Based on SDK source: exchange_token(token, audience, scope, token_type)
             id_jag_response = self._xaa_client.exchange_token(
                 token=id_token,
                 audience=id_jag_audience,
