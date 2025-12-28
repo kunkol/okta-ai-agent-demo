@@ -18,7 +18,7 @@ const authOptions = {
       wellKnown: `https://${OKTA_DOMAIN}/.well-known/openid-configuration`,
       authorization: { params: { scope: "openid profile email" } },
       checks: ["pkce", "state"],
-      profile(profile) {
+      profile(profile: any) {
         return {
           id: profile.sub,
           name: profile.name,
