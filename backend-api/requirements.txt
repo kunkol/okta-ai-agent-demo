@@ -1,28 +1,11 @@
-# Backend API Dependencies
-# Okta AI Agent Demo - C2
-
-# FastAPI Framework
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
-python-multipart==0.0.18
-
-# Pydantic for data validation
-pydantic==2.10.4
-pydantic-settings==2.7.0
-
-# HTTP Client
-httpx==0.28.1
-
-# Authentication & Cryptography
-PyJWT==2.10.1
-cryptography==44.0.0
-
-# Anthropic Claude API
-anthropic==0.42.0
-
-# Utilities
-python-dotenv==1.0.1
-
-# Development
-pytest==8.3.4
-pytest-asyncio==0.25.2
+fastapi>=0.104.0
+uvicorn>=0.24.0
+httpx>=0.25.0
+pydantic>=2.5.0
+python-jose[cryptography]>=3.3.0
+python-multipart>=0.0.6
+anthropic>=0.7.0
+python-dotenv>=1.0.0
+PyJWT>=2.8.0
+cryptography>=41.0.0
+okta-ai-sdk-proto>=1.0.0
