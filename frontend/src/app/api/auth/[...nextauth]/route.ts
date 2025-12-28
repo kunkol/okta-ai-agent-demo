@@ -11,7 +11,7 @@ const authOptions = {
     {
       id: "okta",
       name: "Okta",
-      type: "oidc" as const,
+      type: "oauth" as const,
       clientId: OKTA_CLIENT_ID,
       clientSecret: OKTA_CLIENT_SECRET,
       // CRITICAL: Use ORG authorization server (not custom) for XAA compatibility
@@ -19,7 +19,7 @@ const authOptions = {
       // Issuer will be: https://{domain} (NOT https://{domain}/oauth2/{customAuthServer})
       wellKnown: `https://${OKTA_DOMAIN}/.well-known/openid-configuration`,
       authorization: { params: { scope: "openid profile email" } },
-      checks: ["pkce", "state"],
+      checks: ["pkce", "state"] as ("pkce" | "state")[],
       profile(profile: any) {
         return {
           id: profile.sub,
