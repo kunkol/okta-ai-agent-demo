@@ -43,26 +43,33 @@ class OktaCrossAppAccessManager:
     Flow:
     1. Exchange user's ID token (from ORG auth server) for ID-JAG token
     2. Exchange ID-JAG token for Auth Server access token
+    
+    Key distinction (from Indranil's notebook):
+    - client_id = OAuth App ID (0oa...) - the app that issued the ID token
+    - principal_id = Agent ID (wlp...) - the workload principal doing the exchange
     """
     
     def __init__(self):
         # Okta domain (without https://)
         self.okta_domain = os.getenv("OKTA_DOMAIN", "").replace("https://", "").replace("http://", "")
         
-        # Agent/Workload Principal credentials - using YOUR env var names
-        self.client_id = os.getenv("OKTA_AGENT_ID")  # wlp8x98zcxMOXEPHJ0g7
+        # OAuth App credentials (the app that issues ID tokens)
+        self.client_id = os.getenv("OKTA_CLIENT_ID")  # 0oa... OAuth App ID
         self.client_secret = os.getenv("OKTA_CLIENT_SECRET")
+        
+        # Agent/Workload Principal (does the token exchange)
+        self.principal_id = os.getenv("OKTA_AGENT_ID")  # wlp... Agent ID
         
         # Private JWK for JWT bearer assertion
         self.private_jwk_json = os.getenv("OKTA_AGENT_PRIVATE_KEY")
         self._private_jwk = None
         self._kid = None
         
-        # Authorization servers - using YOUR env var names
-        self.default_auth_server = os.getenv("OKTA_AUTH_SERVER_ID", "default")  # ApexCustomMCP
+        # Authorization servers
+        self.default_auth_server = os.getenv("OKTA_AUTH_SERVER_ID", "default")
         self.google_auth_server = os.getenv("OKTA_GOOGLE_AUTH_SERVER_ID")
         
-        # Audiences - using YOUR env var names
+        # Audiences
         self.default_audience = os.getenv("OKTA_DEFAULT_AUDIENCE", "api://default")
         self.google_audience = os.getenv("OKTA_GOOGLE_AUDIENCE", "https://google.com")
         
@@ -83,7 +90,11 @@ class OktaCrossAppAccessManager:
             
             # Check required credentials
             if not self.client_id:
-                logger.warning("OKTA_AGENT_ID not configured")
+                logger.warning("OKTA_CLIENT_ID not configured (OAuth App ID)")
+                return
+            
+            if not self.principal_id:
+                logger.warning("OKTA_AGENT_ID not configured (Agent/Principal ID)")
                 return
             
             if not self._private_jwk:
@@ -98,13 +109,15 @@ class OktaCrossAppAccessManager:
             try:
                 from okta_ai_sdk import OktaAIConfig, OktaAISDK
                 
-                # Initialize SDK - okta_domain needs https:// prefix
+                # Initialize SDK exactly like Indranil's notebook:
+                # - client_id = OAuth App ID (0oa...)
+                # - principal_id = Agent ID (wlp...)
                 config = OktaAIConfig(
                     okta_domain=f"https://{self.okta_domain}",
                     client_id=self.client_id,
                     client_secret=self.client_secret or "",
                     authorization_server_id=self.default_auth_server,
-                    principal_id=self.client_id,  # workload principal ID
+                    principal_id=self.principal_id,
                     private_jwk=self._private_jwk
                 )
                 
@@ -114,9 +127,9 @@ class OktaCrossAppAccessManager:
                 
                 logger.info(f"XAA Manager initialized with SDK")
                 logger.info(f"  okta_domain: {self.okta_domain}")
-                logger.info(f"  client_id (OKTA_AGENT_ID): {self.client_id}")
-                logger.info(f"  auth_server (OKTA_AUTH_SERVER_ID): {self.default_auth_server}")
-                logger.info(f"  default_audience: {self.default_audience}")
+                logger.info(f"  client_id (OAuth App): {self.client_id}")
+                logger.info(f"  principal_id (Agent): {self.principal_id}")
+                logger.info(f"  auth_server: {self.default_auth_server}")
                 logger.info(f"  kid: {self._kid}")
                 
             except ImportError as e:
@@ -169,20 +182,18 @@ class OktaCrossAppAccessManager:
         from okta_ai_sdk.types import AuthServerTokenRequest
         
         # Step 1: Exchange ID Token for ID-JAG Token
-        # Try using the auth server's configured audience (api://default)
-        # instead of the issuer URL
-        id_jag_audience = self.default_audience  # api://default
+        # Audience format from Indranil's notebook: {OKTA_DOMAIN}/oauth2/{AUTH_SERVER_ID}
+        id_jag_audience = f"https://{self.okta_domain}/oauth2/{self.default_auth_server}"
         
         logger.info(f"Step 1: Exchanging ID Token for ID-JAG via SDK")
         logger.info(f"  audience: {id_jag_audience}")
         
         try:
-            # Use the SDK's exchange_token method
-            id_jag_response = self._xaa_client.exchange_token(
-                token=id_token,
+            # Use the SDK's exchange_id_token method (from Indranil's notebook)
+            id_jag_response = self._xaa_client.exchange_id_token(
+                id_token=id_token,
                 audience=id_jag_audience,
-                scope="openid profile email",
-                token_type="id_token"
+                scope="openid profile email"
             )
             
             id_jag_token = id_jag_response.access_token
@@ -191,26 +202,8 @@ class OktaCrossAppAccessManager:
             logger.info(f"  expires_in: {id_jag_response.expires_in}")
             
         except Exception as e:
-            logger.error(f"Step 1 FAILED with audience {id_jag_audience}: {e}")
-            
-            # Retry with issuer URL format
-            id_jag_audience_v2 = f"https://{self.okta_domain}/oauth2/{self.default_auth_server}"
-            logger.info(f"  Retrying with audience: {id_jag_audience_v2}")
-            
-            try:
-                id_jag_response = self._xaa_client.exchange_token(
-                    token=id_token,
-                    audience=id_jag_audience_v2,
-                    scope="openid profile email",
-                    token_type="id_token"
-                )
-                
-                id_jag_token = id_jag_response.access_token
-                logger.info(f"Step 1 SUCCESS (retry): Got ID-JAG token")
-                
-            except Exception as e2:
-                logger.error(f"Step 1 FAILED (retry): {e2}")
-                raise e  # Raise original error
+            logger.error(f"Step 1 FAILED: {e}")
+            raise
         
         # Step 2: Exchange ID-JAG for Auth Server Access Token
         logger.info(f"Step 2: Exchanging ID-JAG for Auth Server Token")
@@ -220,7 +213,7 @@ class OktaCrossAppAccessManager:
             auth_server_request = AuthServerTokenRequest(
                 id_jag_token=id_jag_token,
                 authorization_server_id=self.default_auth_server,
-                principal_id=self.client_id,
+                principal_id=self.principal_id,
                 private_jwk=self._private_jwk
             )
             
@@ -259,6 +252,7 @@ class OktaCrossAppAccessManager:
             "sdk": "okta-ai-sdk-proto",
             "okta_domain": self.okta_domain,
             "client_id": self.client_id,
+            "principal_id": self.principal_id,
             "client_secret": "configured" if self.client_secret else "not_configured",
             "kid": self._kid,
             "default_auth_server": self.default_auth_server,
