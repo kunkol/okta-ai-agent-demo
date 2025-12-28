@@ -336,7 +336,7 @@ class OktaCrossAppAccessManager:
         
         data = {
             "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
-            "requested_token_type": "urn:ietf:params:oauth:token-type:id-jag",
+            "requested_token_type": "urn:okta:params:oauth:token-type:id-jag+jwt",
             "subject_token": id_token,
             "subject_token_type": "urn:ietf:params:oauth:token-type:id_token",
             "audience": audience,
