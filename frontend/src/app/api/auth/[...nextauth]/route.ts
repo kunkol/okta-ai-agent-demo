@@ -1,5 +1,7 @@
 import NextAuth from "next-auth";
 
+// NextAuth configuration for Okta SSO with XAA support
+
 const OKTA_DOMAIN = process.env.OKTA_DOMAIN!;
 const OKTA_CLIENT_ID = process.env.OKTA_CLIENT_ID!;
 const OKTA_CLIENT_SECRET = process.env.OKTA_CLIENT_SECRET!;
