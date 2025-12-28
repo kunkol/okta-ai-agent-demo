@@ -13,7 +13,7 @@ pydantic-settings==2.7.0
 # HTTP Client
 httpx==0.28.1
 
-# Authentication
+# Authentication & Cryptography
 PyJWT==2.10.1
 cryptography==44.0.0
 
@@ -26,12 +26,3 @@ python-dotenv==1.0.1
 # Development
 pytest==8.3.4
 pytest-asyncio==0.25.2
-
-# Okta AI SDK (XAA)
---extra-index-url https://test.pypi.org/simple/
-okta-ai-sdk-proto
-
-# Okta AI SDK (XAA)
---extra-index-url https://test.pypi.org/simple/
-okta-ai-sdk-proto
-PyJWT>=2.8.0
