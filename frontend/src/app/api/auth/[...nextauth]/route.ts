@@ -1,7 +1,7 @@
 import NextAuth from "next-auth";
 import type { NextAuthOptions } from "next-auth";
 
-export const authOptions: NextAuthOptions = {
+const authOptions: NextAuthOptions = {
   providers: [
     {
       id: "okta",
@@ -30,7 +30,6 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, account, profile }) {
-      // Persist the ID token and access token in the JWT
       if (account) {
         token.idToken = account.id_token;
         token.accessToken = account.access_token;
@@ -39,7 +38,6 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      // Send ID token to the client
       session.idToken = token.idToken as string;
       session.accessToken = token.accessToken as string;
       if (session.user) {
