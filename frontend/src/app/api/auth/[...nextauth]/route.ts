@@ -7,7 +7,7 @@ const authOptions: NextAuthOptions = {
       id: "okta",
       name: "Okta",
       type: "oauth",
-      wellKnown: `https://${process.env.OKTA_DOMAIN}/.well-known/openid-configuration`,
+      wellKnown: `https://${process.env.OKTA_DOMAIN}/oauth2/ApexCustomMCP/.well-known/openid-configuration`,
       clientId: process.env.OKTA_CLIENT_ID,
       clientSecret: process.env.OKTA_CLIENT_SECRET,
       authorization: { 
